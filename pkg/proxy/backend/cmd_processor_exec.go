@@ -5,6 +5,7 @@ package backend
 
 import (
 	"encoding/binary"
+	"runtime"
 	"strings"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -45,6 +46,7 @@ func (cp *CmdProcessor) forwardCommand(clientIO, backendIO *pnet.PacketIO, reque
 			return err
 		}
 	}
+	runtime.Gosched()
 	switch cmd {
 	case pnet.ComStmtPrepare:
 		return cp.forwardPrepareCmd(clientIO, backendIO)

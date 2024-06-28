@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"runtime"
 
 	"github.com/pingcap/tiproxy/lib/util/errors"
 	"github.com/pingcap/tiproxy/pkg/metrics"
@@ -69,6 +70,7 @@ clean:
 func (cc *ClientConnection) processMsg(ctx context.Context) error {
 	for {
 		cc.pkt.ResetSequence()
+		runtime.Gosched()
 		clientPkt, err := cc.pkt.ReadPacket()
 		if err != nil {
 			return err
