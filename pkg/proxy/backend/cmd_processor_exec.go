@@ -5,12 +5,12 @@ package backend
 
 import (
 	"encoding/binary"
-	"runtime"
 	"strings"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/pingcap/tidb/parser"
 	"github.com/pingcap/tiproxy/lib/util/errors"
+	evt "github.com/pingcap/tiproxy/pkg/proxy/event"
 	pnet "github.com/pingcap/tiproxy/pkg/proxy/net"
 	"github.com/siddontang/go/hack"
 	"go.uber.org/zap"
@@ -46,7 +46,7 @@ func (cp *CmdProcessor) forwardCommand(clientIO, backendIO *pnet.PacketIO, reque
 			return err
 		}
 	}
-	runtime.Gosched()
+	evt.MyEvent.WaitForEvent()
 	switch cmd {
 	case pnet.ComStmtPrepare:
 		return cp.forwardPrepareCmd(clientIO, backendIO)

@@ -7,11 +7,11 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"runtime"
 
 	"github.com/pingcap/tiproxy/lib/util/errors"
 	"github.com/pingcap/tiproxy/pkg/metrics"
 	"github.com/pingcap/tiproxy/pkg/proxy/backend"
+	"github.com/pingcap/tiproxy/pkg/proxy/event"
 	pnet "github.com/pingcap/tiproxy/pkg/proxy/net"
 	"go.uber.org/zap"
 )
@@ -51,6 +51,7 @@ func (cc *ClientConnection) Run(ctx context.Context) {
 		msg = "new connection failed"
 		goto clean
 	}
+	event.MyEvent.Increase()
 	cc.logger.Debug("connected to backend", cc.connMgr.ConnInfo()...)
 	if err = cc.processMsg(ctx); err != nil {
 		msg = "fails to relay the connection"
@@ -70,7 +71,7 @@ clean:
 func (cc *ClientConnection) processMsg(ctx context.Context) error {
 	for {
 		cc.pkt.ResetSequence()
-		runtime.Gosched()
+		event.MyEvent.WaitForEvent()
 		clientPkt, err := cc.pkt.ReadPacket()
 		if err != nil {
 			return err
@@ -90,5 +91,6 @@ func (cc *ClientConnection) GracefulClose() {
 }
 
 func (cc *ClientConnection) Close() error {
+	event.MyEvent.Decrease()
 	return errors.Collect(ErrCloseConn, cc.pkt.Close(), cc.connMgr.Close())
 }

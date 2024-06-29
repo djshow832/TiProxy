@@ -17,6 +17,7 @@ import (
 	"github.com/pingcap/tiproxy/pkg/metrics"
 	"github.com/pingcap/tiproxy/pkg/proxy/backend"
 	"github.com/pingcap/tiproxy/pkg/proxy/client"
+	"github.com/pingcap/tiproxy/pkg/proxy/event"
 	"github.com/pingcap/tiproxy/pkg/proxy/keepalive"
 	pnet "github.com/pingcap/tiproxy/pkg/proxy/net"
 	"go.uber.org/zap"
@@ -106,6 +107,7 @@ func (s *SQLServer) reset(cfg *config.Config) {
 func (s *SQLServer) Run(ctx context.Context, cfgch <-chan *config.Config) {
 	// Create another context because it still needs to run after graceful shutdown.
 	ctx, s.cancelFunc = context.WithCancel(context.Background())
+	event.InitEvent(ctx)
 
 	s.wg.RunWithRecover(func() {
 		for {
