@@ -22,7 +22,7 @@ func InitEvent(ctx context.Context) {
 		MyEvent = &Event{
 			cond: sync.Cond{L: &sync.Mutex{}},
 		}
-		MyEvent.Start(ctx)
+		go MyEvent.Start(ctx)
 	})
 }
 
