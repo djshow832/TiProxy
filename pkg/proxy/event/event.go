@@ -50,7 +50,7 @@ func (e *Event) Start(ctx context.Context) {
 	go func() {
 		conn, _ := listener.Accept()
 		defer conn.Close()
-		for ctx.Err() != nil {
+		for ctx.Err() == nil {
 			data := <-ch
 			conn.Write(data)
 		}
@@ -61,12 +61,12 @@ func (e *Event) Start(ctx context.Context) {
 	defer ticker.Stop()
 	data := make([]byte, 1)
 	for ctx.Err() == nil {
-		waiting := e.waiting.Load()
-		if waiting > 0 {
-			ch <- []byte{1}
-			conn.Read(data)
-			e.cond.Broadcast()
-		}
+		// waiting := e.waiting.Load()
+		// if waiting > 0 {
+		ch <- []byte{1}
+		conn.Read(data)
+		e.cond.Broadcast()
+		// }
 		select {
 		case <-ctx.Done():
 			return
