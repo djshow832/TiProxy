@@ -2,7 +2,7 @@ package event
 
 import (
 	"context"
-	"runtime"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,15 +42,29 @@ func (e *Event) WaitForEvent() {
 	e.cond.L.Unlock()
 }
 
-// If possible, we can set the priority of this goroutine to lowest so that we don't need total and waiting.
-// Before Broadcast, epoll has more possibility to run because few goroutines are runnable.
+// If all goroutines are waiting and procs goroutines are waiting for epoll, epoll will run.
 func (e *Event) Start(ctx context.Context) {
-	procs := int32(runtime.GOMAXPROCS(0))
-	ticker := time.NewTicker(100 * time.Microsecond)
+	listener, _ := net.Listen("tcp", "localhost:0")
+	defer listener.Close()
+	ch := make(chan []byte, 1)
+	go func() {
+		conn, _ := listener.Accept()
+		defer conn.Close()
+		for ctx.Err() != nil {
+			data := <-ch
+			conn.Write(data)
+		}
+	}()
+	conn, _ := net.Dial("tcp", listener.Addr().String())
+	defer conn.Close()
+	ticker := time.NewTicker(20 * time.Microsecond)
+	defer ticker.Stop()
+	data := make([]byte, 1)
 	for ctx.Err() == nil {
-		total := e.total.Load()
 		waiting := e.waiting.Load()
-		if waiting > 0 && total-waiting <= procs {
+		if waiting > 0 {
+			ch <- []byte{1}
+			conn.Read(data)
 			e.cond.Broadcast()
 		}
 		select {
@@ -59,5 +73,4 @@ func (e *Event) Start(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
-	ticker.Stop()
 }
