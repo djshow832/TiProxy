@@ -1,0 +1,36 @@
+// Copyright 2024 PingCAP, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package poll
+
+import (
+	"net"
+	"time"
+
+	"github.com/cloudwego/netpoll"
+)
+
+const (
+	CtxKeyClientConn = "client_conn"
+)
+
+func CreateListener(network, address string) (netpoll.Listener, error) {
+	return netpoll.CreateListener(network, address)
+}
+
+func Run(listener net.Listener, onConnect netpoll.OnConnect, onRequest netpoll.OnRequest, onDisconnect netpoll.OnDisconnect) error {
+	eventLoop, err := netpoll.NewEventLoop(
+		onRequest,
+		netpoll.WithOnConnect(onConnect),
+		netpoll.WithOnDisconnect(onDisconnect),
+	)
+	if err != nil {
+		return err
+	}
+	eventLoop.Serve(listener)
+	return nil
+}
+
+func DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	return netpoll.DialConnection(network, address, timeout)
+}

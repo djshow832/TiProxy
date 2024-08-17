@@ -10,15 +10,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bytedance/gopkg/util/logger"
+	"github.com/cloudwego/netpoll"
 	"github.com/pingcap/tiproxy/lib/config"
-	"github.com/pingcap/tiproxy/lib/util/errors"
 	"github.com/pingcap/tiproxy/lib/util/waitgroup"
 	"github.com/pingcap/tiproxy/pkg/manager/cert"
 	"github.com/pingcap/tiproxy/pkg/metrics"
 	"github.com/pingcap/tiproxy/pkg/proxy/backend"
 	"github.com/pingcap/tiproxy/pkg/proxy/client"
-	"github.com/pingcap/tiproxy/pkg/proxy/keepalive"
 	pnet "github.com/pingcap/tiproxy/pkg/proxy/net"
+	"github.com/pingcap/tiproxy/pkg/proxy/poll"
 	"go.uber.org/zap"
 )
 
@@ -67,7 +68,7 @@ func NewSQLServer(logger *zap.Logger, cfg *config.Config, certMgr *cert.CertMana
 	s.addrs = strings.Split(cfg.Proxy.Addr, ",")
 	s.listeners = make([]net.Listener, len(s.addrs))
 	for i, addr := range s.addrs {
-		s.listeners[i], err = net.Listen("tcp", addr)
+		s.listeners[i], err = poll.CreateListener("tcp", addr)
 		if err != nil {
 			return nil, err
 		}
@@ -112,30 +113,16 @@ func (s *SQLServer) Run(ctx context.Context, cfgch <-chan *config.Config) {
 	for i := range s.listeners {
 		j := i
 		s.wg.Run(func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					conn, err := s.listeners[j].Accept()
-					if err != nil {
-						if errors.Is(err, net.ErrClosed) {
-							return
-						}
-
-						s.logger.Error("accept failed", zap.Error(err))
-						continue
-					}
-
-					s.wg.RunWithRecover(func() { s.onConn(ctx, conn, s.addrs[j]) }, nil, s.logger)
-				}
+			err := poll.Run(s.listeners[j], s.onConn, client.OnRequest, s.onDisconnect)
+			if err != nil {
+				s.logger.Error("run eventloop failed", zap.Error(err))
 			}
 		})
 	}
 }
 
-func (s *SQLServer) onConn(ctx context.Context, conn net.Conn, addr string) {
-	tcpKeepAlive, logger, connID, clientConn := func() (bool, *zap.Logger, uint64, *client.ClientConnection) {
+func (s *SQLServer) onConn(ctx context.Context, conn netpoll.Connection) context.Context {
+	logger, clientConn := func() (*zap.Logger, *client.ClientConnection) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -144,11 +131,12 @@ func (s *SQLServer) onConn(ctx context.Context, conn net.Conn, addr string) {
 		// 'maxConns == 0' => unlimited connections
 		if maxConns != 0 && conns >= maxConns {
 			s.logger.Warn("too many connections", zap.Uint64("max connections", maxConns), zap.String("client_addr", conn.RemoteAddr().Network()), zap.Error(conn.Close()))
-			return false, nil, 0, nil
+			return nil, nil
 		}
 
 		connID := s.mu.connID
 		s.mu.connID++
+		addr := conn.RemoteAddr().String()
 		logger := s.logger.With(zap.Uint64("connID", connID), zap.String("client_addr", conn.RemoteAddr().String()),
 			zap.String("addr", addr))
 		clientConn := client.NewClientConnection(logger.Named("conn"), conn, s.certMgr.ServerSQLTLS(), s.certMgr.SQLTLS(),
@@ -161,34 +149,38 @@ func (s *SQLServer) onConn(ctx context.Context, conn net.Conn, addr string) {
 			})
 		s.mu.clients[connID] = clientConn
 		logger.Debug("new connection", zap.Bool("proxy-protocol", s.mu.proxyProtocol), zap.Bool("require_backend_tls", s.mu.requireBackendTLS))
-		return s.mu.tcpKeepAlive, logger, connID, clientConn
+		return logger, clientConn
 	}()
 
 	if clientConn == nil {
-		return
+		_ = conn.Close()
+		return ctx
 	}
 
 	metrics.ConnGauge.Inc()
 	metrics.CreateConnCounter.Inc()
 
-	defer func() {
-		s.mu.Lock()
-		delete(s.mu.clients, connID)
-		s.mu.Unlock()
-
-		if err := clientConn.Close(); err != nil && !pnet.IsDisconnectError(err) {
-			logger.Error("close connection fails", zap.Error(err))
-		} else {
-			logger.Debug("connection closed")
-		}
-		metrics.ConnGauge.Dec()
-	}()
-
-	if err := keepalive.SetKeepalive(conn, config.KeepAlive{Enabled: tcpKeepAlive}); err != nil {
+	if err := conn.SetIdleTimeout(s.mu.healthyKeepAlive.Idle); err != nil {
 		logger.Warn("failed to set tcp keep alive option", zap.Error(err))
 	}
 
-	clientConn.Run(ctx)
+	ctx = context.WithValue(ctx, poll.CtxKeyClientConn, clientConn)
+	clientConn.Connect(ctx, conn)
+	return ctx
+}
+
+func (s *SQLServer) onDisconnect(ctx context.Context, conn netpoll.Connection) {
+	clientConn := ctx.Value(poll.CtxKeyClientConn).(*client.ClientConnection)
+	s.mu.Lock()
+	delete(s.mu.clients, clientConn.ConnID())
+	s.mu.Unlock()
+
+	if err := clientConn.Close(); err != nil && !pnet.IsDisconnectError(err) {
+		logger.Error("close connection fails", zap.Error(err))
+	} else {
+		logger.Debug("connection closed")
+	}
+	metrics.ConnGauge.Dec()
 }
 
 func (s *SQLServer) PreClose() {

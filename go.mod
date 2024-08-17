@@ -36,10 +36,13 @@ require (
 	google.golang.org/grpc v1.54.0
 )
 
+require github.com/bytedance/gopkg v0.0.0-20240507064146-197ded923ae3 // indirect
+
 require (
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cloudwego/netpoll v0.6.3
 	github.com/cockroachdb/datadriven v1.0.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect

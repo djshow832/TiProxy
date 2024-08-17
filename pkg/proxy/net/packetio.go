@@ -30,11 +30,11 @@ import (
 	"net"
 	"time"
 
+	"github.com/cloudwego/netpoll"
 	"github.com/pingcap/tidb/errno"
 	"github.com/pingcap/tidb/util/dbterror"
 	"github.com/pingcap/tiproxy/lib/config"
 	"github.com/pingcap/tiproxy/lib/util/errors"
-	"github.com/pingcap/tiproxy/pkg/proxy/keepalive"
 	"github.com/pingcap/tiproxy/pkg/proxy/proxyprotocol"
 	"github.com/pingcap/tiproxy/pkg/util/bufio"
 	"go.uber.org/zap"
@@ -419,7 +419,7 @@ func (p *PacketIO) SetKeepalive(cfg config.KeepAlive) error {
 		return nil
 	}
 	p.lastKeepAlive = cfg
-	return keepalive.SetKeepalive(p.rawConn, cfg)
+	return p.rawConn.(netpoll.Connection).SetIdleTimeout(cfg.Idle)
 }
 
 // LastKeepAlive is used for test.
