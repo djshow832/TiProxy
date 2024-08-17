@@ -26,8 +26,12 @@ func CreateListener(network, address string) (netpoll.Listener, error) {
 }
 
 func Run(listener net.Listener, onConnect netpoll.OnConnect, onRequest netpoll.OnRequest, onDisconnect netpoll.OnDisconnect) error {
-	netpoll.SetRunner(func(ctx context.Context, f func()) {
-		wgp.RunWithRecover(f, nil, nil)
+	netpoll.Configure(netpoll.Config{
+		PollerNum:  1,
+		BufferSize: 4 * 1024,
+		Runner: func(ctx context.Context, f func()) {
+			wgp.RunWithRecover(f, nil, nil)
+		},
 	})
 	eventLoop, err := netpoll.NewEventLoop(
 		onRequest,
