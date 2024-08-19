@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/cloudwego/netpoll"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/pingcap/tidb/parser"
 	"github.com/pingcap/tiproxy/lib/config"
@@ -150,6 +151,8 @@ type BackendConnManager struct {
 	}
 	connectionID uint64
 	quitSource   ErrorSource
+	request      []byte
+	conn         netpoll.Connection
 }
 
 // NewBackendConnManager creates a BackendConnManager.
@@ -202,6 +205,7 @@ func (mgr *BackendConnManager) Connect(ctx context.Context, clientIO *pnet.Packe
 		mgr.quitSource = src
 		return err
 	}
+	mgr.conn.SetOnRequest(mgr.onRequest)
 	mgr.handshakeHandler.OnHandshake(mgr, mgr.ServerAddr(), nil, SrcNone)
 	endTime := time.Now()
 	addHandshakeMetrics(mgr.ServerAddr(), endTime.Sub(startTime))
@@ -259,7 +263,7 @@ func (mgr *BackendConnManager) getBackendIO(ctx context.Context, cctx ConnContex
 				return nil, backoff.Permanent(errors.Wrap(ErrProxyErr, err))
 			}
 
-			var cn net.Conn
+			var cn netpoll.Connection
 			addr = backend.Addr()
 			cn, err = poll.DialTimeout("tcp", addr, DialTimeout)
 			selector.Finish(mgr, err == nil)
@@ -274,6 +278,7 @@ func (mgr *BackendConnManager) getBackendIO(ctx context.Context, cctx ConnContex
 			mgr.backendIO.Store(backendIO)
 			mgr.curBackend = backend
 			mgr.setKeepAlive()
+			mgr.conn = cn
 			return backendIO, nil
 		},
 		backoff.WithContext(mgr.newExponentialBackOff(), bctx),
@@ -298,6 +303,13 @@ func (mgr *BackendConnManager) getBackendIO(ctx context.Context, cctx ConnContex
 		}
 	}
 	return io, err
+}
+
+func (mgr *BackendConnManager) ForwardClientPkt(ctx context.Context, request []byte) error {
+	backendIO := mgr.backendIO.Load()
+	backendIO.ResetSequence()
+	mgr.request = request
+	return backendIO.WritePacket(request, true)
 }
 
 // ExecuteCmd forwards messages between the client and the backend.
@@ -527,7 +539,7 @@ func (mgr *BackendConnManager) tryRedirect(ctx context.Context) {
 		return
 	}
 
-	var cn net.Conn
+	var cn netpoll.Connection
 	cn, rs.err = poll.DialTimeout("tcp", rs.to, DialTimeout)
 	if rs.err != nil {
 		mgr.handshakeHandler.OnHandshake(mgr, rs.to, rs.err, SrcBackendNetwork)
@@ -556,6 +568,8 @@ func (mgr *BackendConnManager) tryRedirect(ctx context.Context) {
 	mgr.curBackend = *backendInst
 	mgr.setKeepAlive()
 	mgr.handshakeHandler.OnHandshake(mgr, mgr.ServerAddr(), nil, SrcNone)
+	mgr.conn = cn
+	cn.SetOnRequest(mgr.onRequest)
 }
 
 // The original db in the auth info may be dropped during the session, so we need to authenticate with the current db.
@@ -796,4 +810,8 @@ func (mgr *BackendConnManager) ConnInfo() []zap.Field {
 	mgr.processLock.Unlock()
 	fields = append(fields, zap.String("backend_addr", mgr.ServerAddr()))
 	return fields
+}
+
+func (mgr *BackendConnManager) onRequest(ctx context.Context, connection netpoll.Connection) error {
+	return mgr.ExecuteCmd(ctx, mgr.request)
 }

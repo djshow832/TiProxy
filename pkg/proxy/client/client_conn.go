@@ -59,22 +59,6 @@ func (cc *ClientConnection) Connect(ctx context.Context, conn netpoll.Connection
 	cc.logger.Debug("connected to backend", cc.connMgr.ConnInfo()...)
 }
 
-func (cc *ClientConnection) processMsg(ctx context.Context) error {
-	cc.pkt.ResetSequence()
-	clientPkt, err := cc.pkt.ReadPacket()
-	if err != nil {
-		return err
-	}
-	err = cc.connMgr.ExecuteCmd(ctx, clientPkt)
-	if err != nil {
-		return err
-	}
-	if pnet.Command(clientPkt[0]) == pnet.ComQuit {
-		return nil
-	}
-	return nil
-}
-
 func (cc *ClientConnection) clean(msg string, err error, conn netpoll.Connection) {
 	src := cc.connMgr.QuitSource()
 	if !src.Normal() {
@@ -96,9 +80,10 @@ func (cc *ClientConnection) Close() error {
 
 func OnRequest(ctx context.Context, conn netpoll.Connection) error {
 	cc := ctx.Value(poll.CtxKeyClientConn).(*ClientConnection)
-	err := cc.processMsg(ctx)
+	cc.pkt.ResetSequence()
+	clientPkt, err := cc.pkt.ReadPacket()
 	if err != nil {
-		cc.clean("fails to relay the connection", err, conn)
+		return err
 	}
-	return err
+	return cc.connMgr.ForwardClientPkt(ctx, clientPkt)
 }

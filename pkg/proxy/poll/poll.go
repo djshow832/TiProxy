@@ -27,8 +27,7 @@ func CreateListener(network, address string) (netpoll.Listener, error) {
 
 func Run(listener net.Listener, onConnect netpoll.OnConnect, onRequest netpoll.OnRequest, onDisconnect netpoll.OnDisconnect) error {
 	netpoll.Configure(netpoll.Config{
-		PollerNum:  1,
-		BufferSize: 4 * 1024,
+		PollerNum: 1,
 		Runner: func(ctx context.Context, f func()) {
 			wgp.RunWithRecover(f, nil, nil)
 		},
@@ -45,6 +44,6 @@ func Run(listener net.Listener, onConnect netpoll.OnConnect, onRequest netpoll.O
 	return nil
 }
 
-func DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+func DialTimeout(network, address string, timeout time.Duration) (netpoll.Connection, error) {
 	return netpoll.DialConnection(network, address, timeout)
 }

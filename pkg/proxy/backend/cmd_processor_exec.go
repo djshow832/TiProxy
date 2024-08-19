@@ -19,7 +19,7 @@ import (
 // holdRequest: should the proxy send the request to the new backend.
 // err: unexpected errors or MySQL errors.
 func (cp *CmdProcessor) executeCmd(request []byte, clientIO, backendIO *pnet.PacketIO, waitingRedirect bool) (holdRequest bool, err error) {
-	backendIO.ResetSequence()
+	// backendIO.ResetSequence()
 	if waitingRedirect && cp.needHoldRequest(request) {
 		var response []byte
 		if _, response, err = cp.query(backendIO, "COMMIT"); err != nil {
@@ -40,11 +40,11 @@ func (cp *CmdProcessor) executeCmd(request []byte, clientIO, backendIO *pnet.Pac
 func (cp *CmdProcessor) forwardCommand(clientIO, backendIO *pnet.PacketIO, request []byte) error {
 	cmd := pnet.Command(request[0])
 	// ComChangeUser is special: we need to modify the packet before forwarding.
-	if cmd != pnet.ComChangeUser {
-		if err := backendIO.WritePacket(request, true); err != nil {
-			return err
-		}
-	}
+	// if cmd != pnet.ComChangeUser {
+	// 	if err := backendIO.WritePacket(request, true); err != nil {
+	// 		return err
+	// 	}
+	// }
 	switch cmd {
 	case pnet.ComStmtPrepare:
 		return cp.forwardPrepareCmd(clientIO, backendIO)
