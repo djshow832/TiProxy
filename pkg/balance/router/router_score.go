@@ -42,7 +42,8 @@ type ScoreBasedRouter struct {
 	// Only store the version of a random backend, so the client may see a wrong version when backends are upgrading.
 	serverVersion string
 	// To limit the speed of redirection.
-	lastRedirectTime time.Time
+	lastRedirectTime  time.Time
+	lastRebalanceTime time.Time
 	// The backend supports redirection only when they have signing certs.
 	supportRedirection bool
 }
@@ -342,6 +343,11 @@ func (router *ScoreBasedRouter) rebalance(ctx context.Context) {
 	if len(router.backends) <= 1 {
 		return
 	}
+	t := time.Now()
+	if t.Sub(router.lastRebalanceTime) > 100*time.Millisecond {
+		router.logger.Debug("too long no rebalance", zap.Duration("interval", t.Sub(router.lastRebalanceTime)))
+		router.lastRebalanceTime = t
+	}
 	backends := make([]policy.BackendCtx, 0, len(router.backends))
 	for _, backend := range router.backends {
 		backends = append(backends, backend)
@@ -349,6 +355,11 @@ func (router *ScoreBasedRouter) rebalance(ctx context.Context) {
 
 	busiestBackend, idlestBackend, balanceCount, reason, logFields := router.policy.BackendsToBalance(backends)
 	if balanceCount == 0 {
+		for _, backend := range router.backends {
+			if !backend.Healthy() && backend.connList.Len() > 0 {
+				router.logger.Debug("unhealthy but no redirection", zap.Int("len", backend.connList.Len()))
+			}
+		}
 		return
 	}
 	fromBackend, toBackend := busiestBackend.(*backendWrapper), idlestBackend.(*backendWrapper)
@@ -365,6 +376,7 @@ func (router *ScoreBasedRouter) rebalance(ctx context.Context) {
 		if curTime.Sub(router.lastRedirectTime) >= migrationInterval {
 			count = 1
 		} else {
+			router.logger.Debug("wait for next rebalance", zap.Float64("balanceCount", balanceCount))
 			return
 		}
 	}
@@ -375,11 +387,13 @@ func (router *ScoreBasedRouter) rebalance(ctx context.Context) {
 			conn := ele.Value
 			switch conn.phase {
 			case phaseRedirectNotify:
+				router.logger.Debug("notifying, skip", zap.Uint64("connID", conn.ConnectionID()))
 				// A connection cannot be redirected again when it has not finished redirecting.
 				continue
 			case phaseRedirectFail:
 				// If it failed recently, it will probably fail this time.
 				if conn.lastRedirect.Add(redirectFailMinInterval).After(curTime) {
+					router.logger.Debug("fail last time, skip", zap.Uint64("connID", conn.ConnectionID()))
 					continue
 				}
 			}
@@ -391,6 +405,9 @@ func (router *ScoreBasedRouter) rebalance(ctx context.Context) {
 		}
 		router.redirectConn(ce.Value, fromBackend, toBackend, reason, logFields, curTime)
 		router.lastRedirectTime = curTime
+	}
+	if router.lastRedirectTime != curTime {
+		router.logger.Debug("count is not 0 but no redirection", zap.Int("count", count))
 	}
 }
 
