@@ -215,7 +215,7 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 			idlestBackend = backend
 		}
 		// Skip the backends without connections.
-		if score > maxScore && backend.ConnScore() > 0 {
+		if score > maxScore && backend.ConnScore() > 0 && backend.ConnCount() > 0 {
 			maxScore = score
 			busiestBackend = backend
 		}
@@ -228,12 +228,12 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 		}
 	}
 	if idlestBackend == nil || busiestBackend == nil || idlestBackend == busiestBackend {
-		if existUnhealthy {
-			fbb.lg.Info("unhealthy but no backend", zap.Any("idle", idlestBackend), zap.Any("busy", busiestBackend))
-		}
 		return
 	}
 
+	if existUnhealthy {
+		fbb.lg.Info("iterate factors", zap.String("idle", idlestBackend.Addr()), zap.String("busy", busiestBackend.Addr()))
+	}
 	// Get the unbalanced factor and the connection count to migrate.
 	var factor Factor
 	var fields []zap.Field
@@ -253,15 +253,24 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 			if balanceCount > 0.0001 {
 				break
 			}
+			if existUnhealthy && factor.Name() == "status" {
+				fbb.lg.Debug("factor balance count is 0")
+			}
 		} else if score1 < score2 {
 			// Stop it once a factor is in the opposite order, otherwise a subsequent factor may violate this one.
 			// E.g.
 			// backend1 factor scores: 1, 0, 1
 			// backend2 factor scores: 0, 1, 0
 			// Balancing the third factor may make the second factor unbalanced, although it's in the same order with the first factor.
+			if existUnhealthy && factor.Name() == "status" {
+				fbb.lg.Debug("impossible here")
+			}
 			return
 		}
 		leftBitNum -= bitNum
+	}
+	if existUnhealthy {
+		fbb.lg.Debug("iterated all factors")
 	}
 	reason = factor.Name()
 	fields = append(fields, zap.String("factor", reason),
