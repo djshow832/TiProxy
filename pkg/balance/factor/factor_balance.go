@@ -202,9 +202,13 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 	// Get the unbalanced backends and their scores.
 	var idlestBackend, busiestBackend *scoredBackend
 	minScore, maxScore := uint64(1<<maxBitNum-1), uint64(0)
+	existUnhealthy := false
 	for i := 0; i < len(scoredBackends); i++ {
 		backend := &scoredBackends[i]
 		score := backend.score()
+		if !backend.Healthy() && backend.ConnCount() > 0 {
+			existUnhealthy = true
+		}
 		// Skip the unhealthy backends.
 		if score < minScore && backend.Healthy() {
 			minScore = score
@@ -216,7 +220,17 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 			busiestBackend = backend
 		}
 	}
+	if existUnhealthy {
+		for i := 0; i < len(scoredBackends); i++ {
+			backend := &scoredBackends[i]
+			score := backend.score()
+			fbb.lg.Info("backend", zap.String("addr", backend.Addr()), zap.Uint64("score", score), zap.Int("connCount", backend.ConnCount()), zap.Int("connScore", backend.ConnScore()))
+		}
+	}
 	if idlestBackend == nil || busiestBackend == nil || idlestBackend == busiestBackend {
+		if existUnhealthy {
+			fbb.lg.Info("unhealthy but no backend", zap.Any("idle", idlestBackend), zap.Any("busy", busiestBackend))
+		}
 		return
 	}
 
