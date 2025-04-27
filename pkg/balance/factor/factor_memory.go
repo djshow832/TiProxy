@@ -176,12 +176,21 @@ func (fm *FactorMemory) updateSnapshot(qr metricsreader.QueryResult, backends []
 					}
 					valid = true
 					// Log it whenever the risk changes, even from high risk to no risk and no connections.
-					lastRisk, _ := getRiskLevel(snapshot.memUsage, snapshot.timeToOOM)
-					curRisk, _ := getRiskLevel(latestUsage, timeToOOM)
-					if lastRisk != curRisk {
-						fm.lg.Info("update memory risk", zap.String("addr", addr), zap.Float64("memUsage", latestUsage), zap.Duration("timeToOOM", timeToOOM),
-							zap.Int("lastRisk", lastRisk), zap.Float64("lastMemUsage", snapshot.memUsage), zap.Duration("lastTimeToOOM", snapshot.timeToOOM),
-							zap.Int("curRisk", curRisk), zap.Float64("balanceCount", balanceCount), zap.Int("connScore", backend.ConnScore()))
+					if existsSnapshot {
+						lastRisk, _ := getRiskLevel(snapshot.memUsage, snapshot.timeToOOM)
+						curRisk, _ := getRiskLevel(latestUsage, timeToOOM)
+						if lastRisk != curRisk {
+							fm.lg.Info("update memory risk",
+								zap.String("addr", addr),
+								zap.Int("risk", curRisk),
+								zap.Float64("mem_usage", latestUsage),
+								zap.Duration("time_to_oom", timeToOOM),
+								zap.Int("last_risk", lastRisk),
+								zap.Float64("last_mem_usage", snapshot.memUsage),
+								zap.Duration("last_time_to_oom", snapshot.timeToOOM),
+								zap.Float64("balance_count", balanceCount),
+								zap.Int("conn_score", backend.ConnScore()))
+						}
 					}
 				}
 			}
@@ -270,16 +279,18 @@ func (fm *FactorMemory) ScoreBitNum() int {
 	return fm.bitNum
 }
 
-func (fm *FactorMemory) BalanceCount(from, to scoredBackend) float64 {
+func (fm *FactorMemory) BalanceCount(from, to scoredBackend) (float64, []zap.Field) {
 	// The risk level may change frequently, e.g. last time timeToOOM was 30s and connections were migrated away,
 	// then this time it becomes 60s and the connections are migrated back.
 	// So we only rebalance when the difference of risk levels of 2 backends is big enough.
 	fromScore, _ := fm.calcMemScore(from.Addr())
 	toScore, _ := fm.calcMemScore(to.Addr())
 	if fromScore-toScore <= 1 {
-		return 0
+		return 0, nil
 	}
-	return fm.snapshot[from.Addr()].balanceCount
+	snapshot := fm.snapshot[from.Addr()]
+	fields := []zap.Field{zap.Duration("time_to_oom", snapshot.timeToOOM), zap.Float64("mem_usage", snapshot.memUsage)}
+	return snapshot.balanceCount, fields
 }
 
 func (fm *FactorMemory) SetConfig(cfg *config.Config) {

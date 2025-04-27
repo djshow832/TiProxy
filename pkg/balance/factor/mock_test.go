@@ -14,6 +14,7 @@ import (
 	"github.com/pingcap/tiproxy/pkg/balance/observer"
 	"github.com/pingcap/tiproxy/pkg/balance/policy"
 	"github.com/prometheus/common/model"
+	"go.uber.org/zap"
 )
 
 var _ policy.BackendCtx = (*mockBackend)(nil)
@@ -79,8 +80,8 @@ func (mf *mockFactor) ScoreBitNum() int {
 	return mf.bitNum
 }
 
-func (mf *mockFactor) BalanceCount(from, to scoredBackend) float64 {
-	return mf.balanceCount
+func (mf *mockFactor) BalanceCount(from, to scoredBackend) (float64, []zap.Field) {
+	return mf.balanceCount, nil
 }
 
 func (mf *mockFactor) SetConfig(cfg *config.Config) {

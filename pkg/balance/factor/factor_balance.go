@@ -222,18 +222,20 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 
 	// Get the unbalanced factor and the connection count to migrate.
 	var factor Factor
+	var fields []zap.Field
+	var score1, score2 uint64
 	leftBitNum := fbb.totalBitNum
 	for _, factor = range fbb.factors {
 		bitNum := factor.ScoreBitNum()
-		score1 := maxScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
-		score2 := minScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
+		score1 = maxScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
+		score2 = minScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
 		if score1 > score2 {
 			// The previous factors are ordered, so this factor won't violate them.
 			// E.g.
 			// backend1 factor scores: 1, 1
 			// backend2 factor scores: 0, 0
 			// Balancing the second factor won't make the first factor unbalanced.
-			balanceCount = factor.BalanceCount(*busiestBackend, *idlestBackend)
+			balanceCount, fields = factor.BalanceCount(*busiestBackend, *idlestBackend)
 			if balanceCount > 0.0001 {
 				break
 			}
@@ -248,11 +250,12 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 		leftBitNum -= bitNum
 	}
 	reason = factor.Name()
-	fields := []zap.Field{
-		zap.String("factor", reason),
-		zap.Uint64("from_score", maxScore),
-		zap.Uint64("to_score", minScore),
-	}
+	fields = append(fields, zap.String("factor", reason),
+		zap.Uint64("from_total_score", maxScore),
+		zap.Uint64("to_total_score", minScore),
+		zap.Uint64("from_factor_score", score1),
+		zap.Uint64("to_factor_score", score2),
+		zap.Float64("balance_count", balanceCount))
 	return busiestBackend.BackendCtx, idlestBackend.BackendCtx, balanceCount, reason, fields
 }
 
