@@ -220,13 +220,6 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 			busiestBackend = backend
 		}
 	}
-	if existUnhealthy {
-		for i := 0; i < len(scoredBackends); i++ {
-			backend := &scoredBackends[i]
-			score := backend.score()
-			fbb.lg.Info("backend", zap.String("addr", backend.Addr()), zap.Uint64("score", score), zap.Int("connCount", backend.ConnCount()), zap.Int("connScore", backend.ConnScore()))
-		}
-	}
 	if idlestBackend == nil || busiestBackend == nil || idlestBackend == busiestBackend {
 		return
 	}
@@ -241,7 +234,8 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 		score1 = maxScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
 		score2 = minScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
 		if existUnhealthy && factor.Name() == "status" {
-			fbb.lg.Debug("comparing status score", zap.Uint64("score1", score1), zap.Uint64("score2", score2), zap.Uint64("max", maxScore), zap.Uint64("min", minScore))
+			fbb.lg.Debug("comparing status score", zap.Uint64("score1", score1), zap.Uint64("score2", score2), zap.Uint64("max", maxScore), zap.Uint64("min", minScore),
+				zap.Int("maxBit", maxBitNum), zap.Int("leftBitNum", leftBitNum), zap.Int("bitNum", bitNum))
 		}
 		if score1 > score2 {
 			// The previous factors are ordered, so this factor won't violate them.
@@ -252,9 +246,6 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 			balanceCount, fields = factor.BalanceCount(*busiestBackend, *idlestBackend)
 			if balanceCount > 0.0001 {
 				break
-			}
-			if existUnhealthy && factor.Name() == "status" {
-				fbb.lg.Debug("factor balance count is 0")
 			}
 		} else if score1 < score2 {
 			// Stop it once a factor is in the opposite order, otherwise a subsequent factor may violate this one.
