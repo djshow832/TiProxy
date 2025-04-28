@@ -33,12 +33,11 @@ func (b *scoredBackend) addScore(score int, bitNum int) {
 	if score >= 1<<bitNum {
 		b.lg.Error("wrong score", zap.Int("score", score), zap.Int("bitNum", bitNum), zap.Stack("stack"))
 		score = 1<<bitNum - 1
+	} else if score < 0 {
+		b.lg.Error("wrong score", zap.Int("score", score), zap.Int("bitNum", bitNum), zap.Stack("stack"))
+		score = 0
 	}
-	oldScore := b.scoreBits
 	b.scoreBits += uint64(score)
-	if oldScore > b.scoreBits {
-		b.lg.Error("wrong score", zap.Uint64("oldScore", oldScore), zap.Uint64("newScore", b.scoreBits), zap.Int("score", score), zap.Int("bitNum", bitNum), zap.Stack("stack"))
-	}
 }
 
 // score returns the total score.
