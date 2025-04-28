@@ -366,9 +366,3 @@ func TestSetFactors(t *testing.T) {
 	}
 	fm.Close()
 }
-
-func TestBitNum(t *testing.T) {
-	var u uint64
-	u = 66977801
-	require.Equal(t, uint64(1), u<<44>>63)
-}
