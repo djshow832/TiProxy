@@ -143,8 +143,12 @@ func (fbb *FactorBasedBalance) updateBitNum() error {
 // updateScore updates backend scores.
 func (fbb *FactorBasedBalance) updateScore(backends []policy.BackendCtx) []scoredBackend {
 	scoredBackends := fbb.cachedList[:0]
-	for _, backend := range backends {
-		scoredBackends = append(scoredBackends, newScoredBackend(backend))
+	unhealthyIdx := -1
+	for i, backend := range backends {
+		scoredBackends = append(scoredBackends, newScoredBackend(backend, fbb.lg))
+		if !backend.Healthy() {
+			unhealthyIdx = i
+		}
 	}
 	needUpdateMetric := false
 	now := time.Now()
@@ -152,17 +156,24 @@ func (fbb *FactorBasedBalance) updateScore(backends []policy.BackendCtx) []score
 		needUpdateMetric = true
 		fbb.lastMetricTime = now
 	}
+	var fields []zap.Field
 	for _, factor := range fbb.factors {
 		bitNum := factor.ScoreBitNum()
 		for j := 0; j < len(scoredBackends); j++ {
 			scoredBackends[j].prepareScore(bitNum)
 		}
 		factor.UpdateScore(scoredBackends)
+		if unhealthyIdx >= 0 {
+			fields = append(fields, zap.String("factor", factor.Name()), zap.Uint64("score", scoredBackends[unhealthyIdx].scoreBits))
+		}
 		if needUpdateMetric {
 			for j := 0; j < len(scoredBackends); j++ {
 				metrics.BackendScoreGauge.WithLabelValues(backends[j].Addr(), factor.Name()).Set(float64(scoredBackends[j].factorScore(bitNum)))
 			}
 		}
+	}
+	if unhealthyIdx >= 0 && (scoredBackends[unhealthyIdx].scoreBits&1<<26 == 0) {
+		fbb.lg.Error("wrong status is set", fields...)
 	}
 	return scoredBackends
 }

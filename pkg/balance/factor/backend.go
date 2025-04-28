@@ -3,18 +3,23 @@
 
 package factor
 
-import "github.com/pingcap/tiproxy/pkg/balance/policy"
+import (
+	"github.com/pingcap/tiproxy/pkg/balance/policy"
+	"go.uber.org/zap"
+)
 
 type scoredBackend struct {
 	policy.BackendCtx
 	// The score composed by all factors. Each factor sets some bits of the score.
 	// The higher the score is, the more unhealthy / busy the backend is.
 	scoreBits uint64
+	lg        *zap.Logger
 }
 
-func newScoredBackend(backend policy.BackendCtx) scoredBackend {
+func newScoredBackend(backend policy.BackendCtx, lg *zap.Logger) scoredBackend {
 	return scoredBackend{
 		BackendCtx: backend,
+		lg:         lg,
 	}
 }
 
@@ -26,9 +31,14 @@ func (b *scoredBackend) prepareScore(bitNum int) {
 // addScore must be called after prepareScore.
 func (b *scoredBackend) addScore(score int, bitNum int) {
 	if score >= 1<<bitNum {
+		b.lg.Error("wrong score", zap.Int("score", score), zap.Int("bitNum", bitNum), zap.Stack("stack"))
 		score = 1<<bitNum - 1
 	}
+	oldScore := b.scoreBits
 	b.scoreBits += uint64(score)
+	if oldScore > b.scoreBits {
+		b.lg.Error("wrong score", zap.Uint64("oldScore", oldScore), zap.Uint64("newScore", b.scoreBits), zap.Int("score", score), zap.Int("bitNum", bitNum), zap.Stack("stack"))
+	}
 }
 
 // score returns the total score.
