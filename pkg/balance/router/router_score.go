@@ -349,11 +349,6 @@ func (router *ScoreBasedRouter) rebalance(ctx context.Context) {
 
 	busiestBackend, idlestBackend, balanceCount, reason, logFields := router.policy.BackendsToBalance(backends)
 	if balanceCount == 0 {
-		for _, backend := range router.backends {
-			if !backend.Healthy() && backend.connList.Len() > 0 && backend.connScore > 0 {
-				router.logger.Debug("unhealthy but no redirection", zap.Int("len", backend.connList.Len()))
-			}
-		}
 		return
 	}
 	fromBackend, toBackend := busiestBackend.(*backendWrapper), idlestBackend.(*backendWrapper)
