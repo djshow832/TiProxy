@@ -143,37 +143,23 @@ func (fbb *FactorBasedBalance) updateBitNum() error {
 // updateScore updates backend scores.
 func (fbb *FactorBasedBalance) updateScore(backends []policy.BackendCtx) []scoredBackend {
 	scoredBackends := fbb.cachedList[:0]
-	unhealthyIdx := -1
-	for i, backend := range backends {
-		scoredBackends = append(scoredBackends, newScoredBackend(backend, fbb.lg))
-		if !backend.Healthy() {
-			unhealthyIdx = i
-		}
-	}
 	needUpdateMetric := false
 	now := time.Now()
 	if now.Sub(fbb.lastMetricTime) > updateMetricInterval {
 		needUpdateMetric = true
 		fbb.lastMetricTime = now
 	}
-	var fields []zap.Field
 	for _, factor := range fbb.factors {
 		bitNum := factor.ScoreBitNum()
 		for j := 0; j < len(scoredBackends); j++ {
 			scoredBackends[j].prepareScore(bitNum)
 		}
 		factor.UpdateScore(scoredBackends)
-		if unhealthyIdx >= 0 {
-			fields = append(fields, zap.String("factor", factor.Name()), zap.Uint64("score", scoredBackends[unhealthyIdx].scoreBits))
-		}
 		if needUpdateMetric {
 			for j := 0; j < len(scoredBackends); j++ {
 				metrics.BackendScoreGauge.WithLabelValues(backends[j].Addr(), factor.Name()).Set(float64(scoredBackends[j].factorScore(bitNum)))
 			}
 		}
-	}
-	if unhealthyIdx >= 0 && (scoredBackends[unhealthyIdx].scoreBits&1<<26 == 0) {
-		fbb.lg.Error("wrong status is set", fields...)
 	}
 	return scoredBackends
 }
@@ -213,13 +199,9 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 	// Get the unbalanced backends and their scores.
 	var idlestBackend, busiestBackend *scoredBackend
 	minScore, maxScore := uint64(1<<maxBitNum-1), uint64(0)
-	existUnhealthy := false
 	for i := 0; i < len(scoredBackends); i++ {
 		backend := &scoredBackends[i]
 		score := backend.score()
-		if !backend.Healthy() && backend.ConnCount() > 0 {
-			existUnhealthy = true
-		}
 		// Skip the unhealthy backends.
 		if score < minScore && backend.Healthy() {
 			minScore = score
@@ -244,10 +226,6 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 		bitNum := factor.ScoreBitNum()
 		score1 = maxScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
 		score2 = minScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
-		if existUnhealthy && factor.Name() == "status" {
-			fbb.lg.Debug("comparing status score", zap.Uint64("score1", score1), zap.Uint64("score2", score2), zap.Uint64("max", maxScore), zap.Uint64("min", minScore),
-				zap.Int("maxBit", maxBitNum), zap.Int("leftBitNum", leftBitNum), zap.Int("bitNum", bitNum))
-		}
 		if score1 > score2 {
 			// The previous factors are ordered, so this factor won't violate them.
 			// E.g.
@@ -264,9 +242,6 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 			// backend1 factor scores: 1, 0, 1
 			// backend2 factor scores: 0, 1, 0
 			// Balancing the third factor may make the second factor unbalanced, although it's in the same order with the first factor.
-			if existUnhealthy {
-				fbb.lg.Debug("impossible here", zap.String("factor", factor.Name()), zap.Uint64("score1", score1), zap.Uint64("score2", score2))
-			}
 			return
 		}
 		leftBitNum -= bitNum
@@ -278,9 +253,6 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 		zap.Uint64("from_factor_score", score1),
 		zap.Uint64("to_factor_score", score2),
 		zap.Float64("balance_count", balanceCount))
-	if existUnhealthy {
-		fbb.lg.Debug("iterated all factors", fields...)
-	}
 	return busiestBackend.BackendCtx, idlestBackend.BackendCtx, balanceCount, reason, fields
 }
 
