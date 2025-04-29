@@ -163,7 +163,7 @@ func (h *Server) attachLogger(c *gin.Context) {
 		fields = append(fields, zap.Errors("errs", errs))
 		h.lg.Warn(path, fields...)
 	default:
-		h.lg.Debug(path, fields...)
+		//h.lg.Debug(path, fields...)
 	}
 }
 
