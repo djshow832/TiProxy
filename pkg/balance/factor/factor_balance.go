@@ -4,6 +4,7 @@
 package factor
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/pingcap/tiproxy/lib/config"
@@ -176,6 +177,10 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 		return backends[0]
 	}
 	scoredBackends := fbb.updateScore(backends)
+	fields := make([]zap.Field, 0, 2*len(scoredBackends)+1)
+	for _, backend := range scoredBackends {
+		fields = append(fields, zap.String(backend.Addr(), strconv.FormatUint(backend.scoreBits, 16)))
+	}
 
 	// Find the idlest backend.
 	idlestBackend := scoredBackends[0]
@@ -187,6 +192,8 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 			idlestBackend = scoredBackends[i]
 		}
 	}
+	fields = append(fields, zap.String("idlest", idlestBackend.Addr()))
+	fbb.lg.Debug("route", fields...)
 	return idlestBackend.BackendCtx
 }
 
