@@ -475,7 +475,7 @@ func (auth *Authenticator) updateCurrentDB(db string) {
 
 func (auth *Authenticator) ConnInfo() []zap.Field {
 	fields := pnet.Attr2ZapFields(auth.attrs)
-	fields = append(fields, zap.Stringer("capability", auth.capability), zap.Bool("proxy-protocol", auth.proxyProtocol))
+	fields = append(fields, zap.Uint32("capability", auth.capability.Uint32()), zap.Bool("proxy-protocol", auth.proxyProtocol))
 	return fields
 }
 

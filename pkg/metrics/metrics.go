@@ -117,6 +117,7 @@ func init() {
 		HealthCheckCycleGauge,
 		MigrateCounter,
 		MigrateDurationHistogram,
+		PendingMigrateCounter,
 		InboundBytesCounter,
 		InboundPacketsCounter,
 		OutboundBytesCounter,

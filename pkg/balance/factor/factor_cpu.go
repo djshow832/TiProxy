@@ -216,7 +216,7 @@ func (fc *FactorCPU) updateCpuPerConn() {
 		}
 		if fc.usagePerConn != 0 && math.Abs(usagePerConn/fc.usagePerConn-1) > 0.05 {
 			fc.lg.Debug("update CPU usage per connection",
-				zap.Float64("usage_per_conn", fc.usagePerConn),
+				zap.Float64("usage_per_conn", usagePerConn),
 				zap.Int("total_conns", totalConns),
 				zap.Float64("total_usage", totalUsage))
 		}

@@ -16,6 +16,7 @@ import (
 	"github.com/pingcap/tiproxy/lib/util/waitgroup"
 	"github.com/pingcap/tiproxy/pkg/balance/observer"
 	"github.com/pingcap/tiproxy/pkg/balance/policy"
+	"github.com/pingcap/tiproxy/pkg/metrics"
 	"go.uber.org/zap"
 )
 
@@ -187,7 +188,9 @@ func (router *ScoreBasedRouter) RedirectConnections() error {
 				connWrapper.phase = phaseRedirectNotify
 				connWrapper.redirectReason = "test"
 				// Ignore the results.
-				_ = connWrapper.Redirect(backend)
+				if connWrapper.Redirect(backend) {
+					metrics.PendingMigrateCounter.WithLabelValues(backend.addr, backend.addr, connWrapper.redirectReason).Inc()
+				}
 				connWrapper.redirectingBackend = backend
 			}
 		}
@@ -259,6 +262,7 @@ func (router *ScoreBasedRouter) OnConnClosed(addr string, conn RedirectableConn)
 		redirectingBackend.connScore--
 		connWrapper.Value.redirectingBackend = nil
 		router.removeBackendIfEmpty(redirectingBackend)
+		metrics.PendingMigrateCounter.WithLabelValues(backend.addr, redirectingBackend.addr, connWrapper.Value.redirectReason).Add(-1)
 	} else {
 		backend.connScore--
 	}
@@ -411,6 +415,7 @@ func (router *ScoreBasedRouter) redirectConn(conn *connWrapper, fromBackend *bac
 		conn.phase = phaseRedirectNotify
 		conn.redirectReason = reason
 		conn.redirectingBackend = toBackend
+		metrics.PendingMigrateCounter.WithLabelValues(fromBackend.addr, toBackend.addr, reason).Inc()
 	} else {
 		// Avoid it to be redirected again immediately.
 		conn.phase = phaseRedirectFail
