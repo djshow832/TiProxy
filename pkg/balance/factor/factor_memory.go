@@ -66,8 +66,8 @@ type oomRiskLevel struct {
 // We only need to rescue as many connections as possible when the backend is going OOM.
 var (
 	oomRiskLevels = []oomRiskLevel{
-		{memUsage: 0.75, timeToOOM: time.Minute},
-		{memUsage: 0.6, timeToOOM: 5 * time.Minute},
+		{memUsage: 0.75, timeToOOM: 45 * time.Second},
+		{memUsage: 0.6, timeToOOM: 3 * time.Minute},
 	}
 )
 

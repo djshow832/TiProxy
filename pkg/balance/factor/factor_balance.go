@@ -188,7 +188,7 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 	}
 	for _, factor := range fbb.factors {
 		switch factor.Name() {
-		case "health", "memory", "cpu":
+		case "health", "memory":
 			continue
 		default:
 			bitNum := factor.ScoreBitNum()

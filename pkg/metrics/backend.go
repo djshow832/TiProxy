@@ -45,6 +45,14 @@ var (
 			Help:      "Counter of getting backend.",
 		}, []string{LblRes})
 
+	DialBackendFailCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: ModuleProxy,
+			Subsystem: LabelBackend,
+			Name:      "dial_backend_fail",
+			Help:      "Counter of failing to dial backends.",
+		}, []string{LblBackend})
+
 	PingBackendGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: ModuleProxy,

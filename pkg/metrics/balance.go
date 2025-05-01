@@ -43,8 +43,8 @@ var (
 			Buckets:   prometheus.ExponentialBuckets(0.0001, 2, 26), // 0.1ms ~ 1h
 		}, []string{LblFrom, LblTo, LblMigrateResult})
 
-	PendingMigrateCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	PendingMigrateGuage = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
 			Namespace: ModuleProxy,
 			Subsystem: LabelBalance,
 			Name:      "pending_migrate",

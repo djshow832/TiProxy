@@ -111,9 +111,6 @@ func (router *ScoreBasedRouter) routeOnce(excluded []BackendInst) (BackendInst, 
 
 	backends := make([]policy.BackendCtx, 0, len(router.backends))
 	for _, backend := range router.backends {
-		if !backend.Healthy() {
-			continue
-		}
 		// Exclude the backends that are already tried.
 		found := false
 		for _, e := range excluded {
@@ -189,7 +186,7 @@ func (router *ScoreBasedRouter) RedirectConnections() error {
 				connWrapper.redirectReason = "test"
 				// Ignore the results.
 				if connWrapper.Redirect(backend) {
-					metrics.PendingMigrateCounter.WithLabelValues(backend.addr, backend.addr, connWrapper.redirectReason).Inc()
+					metrics.PendingMigrateGuage.WithLabelValues(backend.addr, backend.addr, connWrapper.redirectReason).Inc()
 				}
 				connWrapper.redirectingBackend = backend
 			}
@@ -262,7 +259,7 @@ func (router *ScoreBasedRouter) OnConnClosed(addr string, conn RedirectableConn)
 		redirectingBackend.connScore--
 		connWrapper.Value.redirectingBackend = nil
 		router.removeBackendIfEmpty(redirectingBackend)
-		metrics.PendingMigrateCounter.WithLabelValues(backend.addr, redirectingBackend.addr, connWrapper.Value.redirectReason).Add(-1)
+		metrics.PendingMigrateGuage.WithLabelValues(backend.addr, redirectingBackend.addr, connWrapper.Value.redirectReason).Dec()
 	} else {
 		backend.connScore--
 	}
@@ -415,7 +412,7 @@ func (router *ScoreBasedRouter) redirectConn(conn *connWrapper, fromBackend *bac
 		conn.phase = phaseRedirectNotify
 		conn.redirectReason = reason
 		conn.redirectingBackend = toBackend
-		metrics.PendingMigrateCounter.WithLabelValues(fromBackend.addr, toBackend.addr, reason).Inc()
+		metrics.PendingMigrateGuage.WithLabelValues(fromBackend.addr, toBackend.addr, reason).Inc()
 	} else {
 		// Avoid it to be redirected again immediately.
 		conn.phase = phaseRedirectFail
