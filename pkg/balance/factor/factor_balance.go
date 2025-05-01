@@ -201,11 +201,11 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 		for startBackendIdx < len(scoredBackends)-1 {
 			score1 = scoredBackends[startBackendIdx].scoreBits << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
 			if score1 > score2 {
-				var balanceCount float64
-				balanceCount, fields = factor.BalanceCount(scoredBackends[startBackendIdx], scoredBackends[len(scoredBackends)-1])
+				balanceCount, balanceFields := factor.BalanceCount(scoredBackends[startBackendIdx], scoredBackends[len(scoredBackends)-1])
 				if balanceCount > 0.0001 {
-					startBackendIdx++
+					fields = append(fields, balanceFields...)
 					fields = append(fields, zap.String(fmt.Sprintf("fail_%s", scoredBackends[startBackendIdx].Addr()), factor.Name()))
+					startBackendIdx++
 					continue
 				}
 			}
