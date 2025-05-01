@@ -172,7 +172,7 @@ func (fbb *FactorBasedBalance) updateScore(backends []policy.BackendCtx) []score
 func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) policy.BackendCtx {
 	startTime := time.Now()
 	defer func() {
-		metrics.GetBackendHistogram.Observe(time.Since(startTime).Seconds())
+		metrics.RouteHistogram.Observe(time.Since(startTime).Seconds())
 	}()
 
 	if len(backends) == 0 {
