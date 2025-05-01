@@ -103,6 +103,11 @@ func (router *ScoreBasedRouter) setConnWrapper(conn RedirectableConn, ce *glist.
 }
 
 func (router *ScoreBasedRouter) routeOnce(excluded []BackendInst) (BackendInst, error) {
+	startTime := time.Now()
+	defer func() {
+		metrics.RouteHistogram.Observe(time.Since(startTime).Seconds())
+	}()
+
 	router.Lock()
 	defer router.Unlock()
 	if router.observeError != nil {

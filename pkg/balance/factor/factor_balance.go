@@ -4,6 +4,7 @@
 package factor
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"sort"
 	"strconv"
@@ -172,11 +173,6 @@ func (fbb *FactorBasedBalance) updateScore(backends []policy.BackendCtx) []score
 
 // BackendToRoute returns the idlest backend.
 func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) policy.BackendCtx {
-	startTime := time.Now()
-	defer func() {
-		metrics.RouteHistogram.Observe(time.Since(startTime).Seconds())
-	}()
-
 	if len(backends) == 0 {
 		return nil
 	}
@@ -205,9 +201,11 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 		for startBackendIdx < len(scoredBackends)-1 {
 			score1 = scoredBackends[startBackendIdx].scoreBits << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
 			if score1 > score2 {
-				balanceCount, _ := factor.BalanceCount(scoredBackends[startBackendIdx], scoredBackends[len(scoredBackends)-1])
+				var balanceCount float64
+				balanceCount, fields = factor.BalanceCount(scoredBackends[startBackendIdx], scoredBackends[len(scoredBackends)-1])
 				if balanceCount > 0.0001 {
 					startBackendIdx++
+					fields = append(fields, zap.String(fmt.Sprintf("fail_%s", scoredBackends[startBackendIdx].Addr()), factor.Name()))
 					continue
 				}
 			}
