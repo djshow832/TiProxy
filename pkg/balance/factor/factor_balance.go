@@ -4,6 +4,8 @@
 package factor
 
 import (
+	"math/rand/v2"
+	"sort"
 	"strconv"
 	"time"
 
@@ -182,41 +184,48 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 		return backends[0]
 	}
 
-	scoredBackends := fbb.cachedList[:0]
-	for _, backend := range backends {
-		scoredBackends = append(scoredBackends, newScoredBackend(backend, fbb.lg))
-	}
-	for _, factor := range fbb.factors {
-		switch factor.Name() {
-		case "health", "memory":
-			continue
-		default:
-			bitNum := factor.ScoreBitNum()
-			for j := 0; j < len(scoredBackends); j++ {
-				scoredBackends[j].prepareScore(bitNum)
-			}
-			factor.UpdateScore(scoredBackends)
-		}
-	}
+	scoredBackends := fbb.updateScore(backends)
+	sort.Slice(scoredBackends, func(i, j int) bool {
+		return scoredBackends[i].score() > scoredBackends[j].score()
+	})
 
 	fields := make([]zap.Field, 0, 2*len(scoredBackends)+1)
 	for _, backend := range scoredBackends {
 		fields = append(fields, zap.String(backend.Addr(), strconv.FormatUint(backend.scoreBits, 16)))
 	}
 
-	// Find the idlest backend.
-	idlestBackend := scoredBackends[0]
-	minScore := idlestBackend.score()
-	for i := 1; i < len(scoredBackends); i++ {
-		score := scoredBackends[i].score()
-		if score < minScore {
-			minScore = score
-			idlestBackend = scoredBackends[i]
+	var factor Factor
+	startBackendIdx := 0
+	leftBitNum := fbb.totalBitNum
+	minScore := scoredBackends[len(scoredBackends)-1].scoreBits
+	for _, factor = range fbb.factors {
+		bitNum := factor.ScoreBitNum()
+		var score1 uint64
+		score2 := minScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
+		for startBackendIdx < len(scoredBackends)-1 {
+			score1 = scoredBackends[startBackendIdx].scoreBits << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
+			if score1 > score2 {
+				balanceCount, _ := factor.BalanceCount(scoredBackends[startBackendIdx], scoredBackends[len(scoredBackends)-1])
+				if balanceCount > 0.0001 {
+					startBackendIdx++
+					continue
+				}
+			}
+			break
 		}
+		if startBackendIdx >= len(scoredBackends)-1 {
+			break
+		}
+		leftBitNum -= bitNum
 	}
-	fields = append(fields, zap.String("idlest", idlestBackend.Addr()))
+
+	idx := len(scoredBackends) - 1
+	if startBackendIdx < len(scoredBackends)-1 {
+		idx = rand.IntN(len(scoredBackends)-startBackendIdx) + startBackendIdx
+	}
+	fields = append(fields, zap.String("idlest", scoredBackends[idx].Addr()), zap.Int("start_idx", startBackendIdx))
 	fbb.lg.Debug("route", fields...)
-	return idlestBackend.BackendCtx
+	return scoredBackends[idx].BackendCtx
 }
 
 // BackendsToBalance returns the busiest/unhealthy backend and the idlest backend.
