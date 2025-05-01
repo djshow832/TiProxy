@@ -170,13 +170,35 @@ func (fbb *FactorBasedBalance) updateScore(backends []policy.BackendCtx) []score
 
 // BackendToRoute returns the idlest backend.
 func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) policy.BackendCtx {
+	startTime := time.Now()
+	defer func() {
+		metrics.GetBackendHistogram.Observe(time.Since(startTime).Seconds())
+	}()
+
 	if len(backends) == 0 {
 		return nil
 	}
 	if len(backends) == 1 {
 		return backends[0]
 	}
-	scoredBackends := fbb.updateScore(backends)
+
+	scoredBackends := fbb.cachedList[:0]
+	for _, backend := range backends {
+		scoredBackends = append(scoredBackends, newScoredBackend(backend, fbb.lg))
+	}
+	for _, factor := range fbb.factors {
+		switch factor.Name() {
+		case "health", "memory", "cpu":
+			continue
+		default:
+			bitNum := factor.ScoreBitNum()
+			for j := 0; j < len(scoredBackends); j++ {
+				scoredBackends[j].prepareScore(bitNum)
+			}
+			factor.UpdateScore(scoredBackends)
+		}
+	}
+
 	fields := make([]zap.Field, 0, 2*len(scoredBackends)+1)
 	for _, backend := range scoredBackends {
 		fields = append(fields, zap.String(backend.Addr(), strconv.FormatUint(backend.scoreBits, 16)))

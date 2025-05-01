@@ -6,7 +6,8 @@ package metrics
 import "github.com/prometheus/client_golang/prometheus"
 
 const (
-	LblRes = "res"
+	LblRes        = "res"
+	LblMetricName = "metric"
 )
 
 var (
@@ -24,6 +25,15 @@ var (
 			Subsystem: LabelBackend,
 			Name:      "get_backend_duration_seconds",
 			Help:      "Bucketed histogram of time (s) for getting an available backend.",
+			Buckets:   prometheus.ExponentialBuckets(0.000001, 2, 26), // 1us ~ 30s
+		})
+
+	RouteHistogram = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: ModuleProxy,
+			Subsystem: LabelBackend,
+			Name:      "route_duration_seconds",
+			Help:      "Bucketed histogram of time (s) for routing to a backend.",
 			Buckets:   prometheus.ExponentialBuckets(0.000001, 2, 26), // 1us ~ 30s
 		})
 
@@ -50,4 +60,12 @@ var (
 			Name:      "health_check_seconds",
 			Help:      "Time (s) of each health check cycle.",
 		})
+
+	BackendMetricGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: ModuleProxy,
+			Subsystem: LabelBackend,
+			Name:      "backend_metric",
+			Help:      "The backend metric.",
+		}, []string{LblBackend, LblMetricName})
 )

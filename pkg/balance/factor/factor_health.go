@@ -9,6 +9,7 @@ import (
 
 	"github.com/pingcap/tiproxy/lib/config"
 	"github.com/pingcap/tiproxy/pkg/balance/metricsreader"
+	"github.com/pingcap/tiproxy/pkg/metrics"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
@@ -17,7 +18,7 @@ import (
 const (
 	errMetricExpDuration = 1 * time.Minute
 	// balanceSeconds4Health indicates the time (in seconds) to migrate all the connections.
-	balanceSeconds4Health = 5.0
+	balanceSeconds4Health = 60.0
 )
 
 type valueRange int
@@ -61,11 +62,11 @@ var (
 	errDefinitions = []errDefinition{
 		{
 			// may be caused by disconnection to PD
-			// test with no connection in no network: around 80/m
+			// test with no connection in no network: around 500/m
 			// test with 100 connections in unstable network: [50, 135]/2m
 			promQL:           `sum(increase(tidb_tikvclient_backoff_seconds_count{type="pdRPC"}[2m])) by (instance)`,
-			failThreshold:    50,
-			recoverThreshold: 10,
+			failThreshold:    500,
+			recoverThreshold: 50,
 			key:              "health_pd",
 			queryRule: metricsreader.QueryRule{
 				Names:     []string{"tidb_tikvclient_backoff_seconds_count"},
@@ -249,6 +250,7 @@ func (fh *FactorHealth) updateSnapshot(backends []scoredBackend) {
 				updatedTime = ts
 			}
 			sample := fh.indicators[i].queryResult.GetSample4Backend(backend)
+			metrics.BackendMetricGauge.WithLabelValues(backend.Addr(), indicator).Set(float64(sample.Value))
 			vr := calcValueRange(sample, fh.indicators[i])
 			if vr > valueRange {
 				valueRange = vr
