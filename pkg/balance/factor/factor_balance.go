@@ -181,47 +181,55 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 	}
 
 	scoredBackends := fbb.updateScore(backends)
-	sort.Slice(scoredBackends, func(i, j int) bool {
-		return scoredBackends[i].score() > scoredBackends[j].score()
-	})
+	indexes := make([]int, len(scoredBackends))
+	for i := range indexes {
+		indexes[i] = i
+	}
 
-	fields := make([]zap.Field, 0, 2*len(scoredBackends)+1)
+	var fields []zap.Field
 	for _, backend := range scoredBackends {
 		fields = append(fields, zap.String(backend.Addr(), strconv.FormatUint(backend.scoreBits, 16)))
 	}
 
-	var factor Factor
-	startBackendIdx := 0
 	leftBitNum := fbb.totalBitNum
-	minScore := scoredBackends[len(scoredBackends)-1].scoreBits
-	for _, factor = range fbb.factors {
+	for _, factor := range fbb.factors {
 		bitNum := factor.ScoreBitNum()
-		var score1 uint64
-		score2 := minScore << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
-		for startBackendIdx < len(scoredBackends)-1 {
-			score1 = scoredBackends[startBackendIdx].scoreBits << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
-			if score1 > score2 {
-				balanceCount, balanceFields := factor.BalanceCount(scoredBackends[startBackendIdx], scoredBackends[len(scoredBackends)-1])
+		sort.Slice(indexes, func(i int, j int) bool {
+			score1 := scoredBackends[indexes[i]].scoreBits << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
+			score2 := scoredBackends[indexes[j]].scoreBits << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
+			return score1 > score2
+		})
+		minScore := scoredBackends[indexes[len(indexes)-1]].scoreBits << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
+		startIdx := 0
+		for i := 0; i < len(indexes)-1; i++ {
+			score := scoredBackends[indexes[i]].scoreBits << (maxBitNum - leftBitNum) >> (maxBitNum - bitNum)
+			if score > minScore {
+				balanceCount, balanceFields := factor.BalanceCount(scoredBackends[indexes[i]], scoredBackends[indexes[len(indexes)-1]])
 				if balanceCount > 0.0001 {
 					fields = append(fields, balanceFields...)
-					fields = append(fields, zap.String(fmt.Sprintf("fail_%s", scoredBackends[startBackendIdx].Addr()), factor.Name()))
-					startBackendIdx++
-					continue
+					fields = append(fields, zap.String(fmt.Sprintf("fail_%s", scoredBackends[indexes[i]].Addr()), factor.Name()))
+					startIdx++
 				}
 			}
 			break
 		}
-		if startBackendIdx >= len(scoredBackends)-1 {
+		if startIdx > 0 {
+			newIndex := make([]int, len(indexes)-startIdx)
+			copy(newIndex, indexes[startIdx:])
+			indexes = newIndex
+		}
+		if len(indexes) < 2 {
 			break
 		}
 		leftBitNum -= bitNum
 	}
 
-	idx := len(scoredBackends) - 1
-	if startBackendIdx < len(scoredBackends)-1 {
-		idx = rand.IntN(len(scoredBackends)-startBackendIdx) + startBackendIdx
+	idx := 0
+	if len(indexes) > 1 {
+		idx = rand.IntN(len(indexes))
 	}
-	fields = append(fields, zap.String("idlest", scoredBackends[idx].Addr()), zap.Int("start_idx", startBackendIdx))
+	idx = indexes[idx]
+	fields = append(fields, zap.String("idlest", scoredBackends[idx].Addr()), zap.Ints("indexes", indexes))
 	fbb.lg.Debug("route", fields...)
 	return scoredBackends[idx].BackendCtx
 }
