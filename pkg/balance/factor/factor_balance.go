@@ -209,6 +209,7 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 					fields = append(fields, balanceFields...)
 					fields = append(fields, zap.String(fmt.Sprintf("fail_%s", scoredBackends[indexes[i]].Addr()), factor.Name()))
 					startIdx++
+					continue
 				}
 			}
 			break
