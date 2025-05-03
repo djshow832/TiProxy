@@ -258,8 +258,12 @@ func (fc *FactorCPU) BalanceCount(from, to scoredBackend) (float64, []zap.Field)
 	fields := []zap.Field{
 		zap.Float64("from_avg_usage", fromAvgUsage),
 		zap.Float64("from_latest_usage", fromLatestUsage),
+		zap.Int("from_snapshot_conn", fc.snapshot[from.Addr()].connCount),
+		zap.Int("from_conn", from.ConnScore()),
 		zap.Float64("to_avg_usage", toAvgUsage),
 		zap.Float64("to_latest_usage", toLatestUsage),
+		zap.Int("to_snapshot_conn", fc.snapshot[to.Addr()].connCount),
+		zap.Int("to_conn", to.ConnScore()),
 		zap.Float64("usage_per_conn", fc.usagePerConn),
 	}
 	return 1 / fc.usagePerConn / balanceRatio4Cpu, fields

@@ -4,7 +4,6 @@
 package factor
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"sort"
 	"strconv"
@@ -31,6 +30,7 @@ type FactorBasedBalance struct {
 	factors []Factor
 	// to reduce memory allocation
 	cachedList      []scoredBackend
+	cachedIdxes     []int
 	mr              metricsreader.MetricsReader
 	lg              *zap.Logger
 	factorStatus    *FactorStatus
@@ -46,9 +46,10 @@ type FactorBasedBalance struct {
 
 func NewFactorBasedBalance(lg *zap.Logger, mr metricsreader.MetricsReader) *FactorBasedBalance {
 	return &FactorBasedBalance{
-		lg:         lg,
-		mr:         mr,
-		cachedList: make([]scoredBackend, 0, 512),
+		lg:          lg,
+		mr:          mr,
+		cachedList:  make([]scoredBackend, 0, 512),
+		cachedIdxes: make([]int, 0, 512),
 	}
 }
 
@@ -171,7 +172,7 @@ func (fbb *FactorBasedBalance) updateScore(backends []policy.BackendCtx) []score
 	return scoredBackends
 }
 
-// BackendToRoute returns the idlest backend.
+// BackendToRoute returns one backend to route a new connection to.
 func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) policy.BackendCtx {
 	if len(backends) == 0 {
 		return nil
@@ -181,9 +182,9 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 	}
 
 	scoredBackends := fbb.updateScore(backends)
-	indexes := make([]int, len(scoredBackends))
-	for i := range indexes {
-		indexes[i] = i
+	indexes := fbb.cachedIdxes[:0]
+	for i := 0; i < len(scoredBackends); i++ {
+		indexes = append(indexes, i)
 	}
 
 	var fields []zap.Field
@@ -192,6 +193,9 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 	}
 
 	leftBitNum := fbb.totalBitNum
+	// For each factor, if a backend is so busy that it should migrate connections to another, evict this backend.
+	// Always choosing the idlest one is simpler but it works bad for short connections. Even a little jitter may cause
+	// all the connections in the next second route to the same backend.
 	for _, factor := range fbb.factors {
 		bitNum := factor.ScoreBitNum()
 		sort.Slice(indexes, func(i int, j int) bool {
@@ -206,8 +210,8 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 			if score > minScore {
 				balanceCount, balanceFields := factor.BalanceCount(scoredBackends[indexes[i]], scoredBackends[indexes[len(indexes)-1]])
 				if balanceCount > 0.0001 {
+					fields = append(fields, zap.String(scoredBackends[indexes[i]].Addr(), factor.Name()))
 					fields = append(fields, balanceFields...)
-					fields = append(fields, zap.String(fmt.Sprintf("fail_%s", scoredBackends[indexes[i]].Addr()), factor.Name()))
 					startIdx++
 					continue
 				}
@@ -215,9 +219,7 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 			break
 		}
 		if startIdx > 0 {
-			newIndex := make([]int, len(indexes)-startIdx)
-			copy(newIndex, indexes[startIdx:])
-			indexes = newIndex
+			indexes = indexes[startIdx:]
 		}
 		if len(indexes) < 2 {
 			break
@@ -225,12 +227,13 @@ func (fbb *FactorBasedBalance) BackendToRoute(backends []policy.BackendCtx) poli
 		leftBitNum -= bitNum
 	}
 
+	// For the rest backends, choose a random one.
 	idx := 0
 	if len(indexes) > 1 {
 		idx = rand.IntN(len(indexes))
 	}
 	idx = indexes[idx]
-	fields = append(fields, zap.String("idlest", scoredBackends[idx].Addr()), zap.Ints("indexes", indexes))
+	fields = append(fields, zap.String("target", scoredBackends[idx].Addr()), zap.Ints("rand_indexes", indexes))
 	fbb.lg.Debug("route", fields...)
 	return scoredBackends[idx].BackendCtx
 }
