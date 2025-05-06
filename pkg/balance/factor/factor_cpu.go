@@ -249,12 +249,6 @@ func (fc *FactorCPU) ScoreBitNum() int {
 func (fc *FactorCPU) BalanceCount(from, to scoredBackend) (float64, []zap.Field) {
 	fromAvgUsage, fromLatestUsage := fc.getUsage(from)
 	toAvgUsage, toLatestUsage := fc.getUsage(to)
-	// The higher the CPU usage, the more sensitive the load balance should be.
-	// E.g. 10% vs 25% don't need rebalance, but 80% vs 95% need rebalance.
-	// Use the average usage to avoid thrash when CPU jitters too much and use the latest usage to avoid migrate too many connections.
-	if 1.3-toAvgUsage < (1.3-fromAvgUsage)*cpuBalancedRatio || 1.3-toLatestUsage < (1.3-fromLatestUsage)*cpuBalancedRatio {
-		return 0, nil
-	}
 	fields := []zap.Field{
 		zap.Float64("from_avg_usage", fromAvgUsage),
 		zap.Float64("from_latest_usage", fromLatestUsage),
@@ -265,6 +259,12 @@ func (fc *FactorCPU) BalanceCount(from, to scoredBackend) (float64, []zap.Field)
 		zap.Int("to_snapshot_conn", fc.snapshot[to.Addr()].connCount),
 		zap.Int("to_conn", to.ConnScore()),
 		zap.Float64("usage_per_conn", fc.usagePerConn),
+	}
+	// The higher the CPU usage, the more sensitive the load balance should be.
+	// E.g. 10% vs 25% don't need rebalance, but 80% vs 95% need rebalance.
+	// Use the average usage to avoid thrash when CPU jitters too much and use the latest usage to avoid migrate too many connections.
+	if 1.3-toAvgUsage < (1.3-fromAvgUsage)*cpuBalancedRatio || 1.3-toLatestUsage < (1.3-fromLatestUsage)*cpuBalancedRatio {
+		return 0, nil
 	}
 	return 1 / fc.usagePerConn / balanceRatio4Cpu, fields
 }

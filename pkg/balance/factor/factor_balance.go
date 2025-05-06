@@ -280,6 +280,15 @@ func (fbb *FactorBasedBalance) BackendsToBalance(backends []policy.BackendCtx) (
 			if balanceCount > 0.0001 {
 				break
 			}
+			if factor.Name() == "cpu" {
+				fields = append(fields, zap.String("factor", reason),
+					zap.String("from_total_score", strconv.FormatUint(maxScore, 16)),
+					zap.String("to_total_score", strconv.FormatUint(minScore, 16)),
+					zap.Uint64("from_factor_score", score1),
+					zap.Uint64("to_factor_score", score2),
+					zap.Float64("balance_count", balanceCount))
+				fbb.lg.Debug("no rebalance", fields...)
+			}
 		} else if score1 < score2 {
 			// Stop it once a factor is in the opposite order, otherwise a subsequent factor may violate this one.
 			// E.g.
