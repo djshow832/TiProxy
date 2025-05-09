@@ -148,6 +148,8 @@ func (b *backendWrapper) AddIncoming(id uint64) {
 func (b *backendWrapper) DecIncoming(id uint64) {
 	if _, ok := b.incoming[id]; !ok {
 		b.lg.Error("not exists", zap.Uint64("id", id), zap.Stack("nonexist"))
+	} else {
+		delete(b.incoming, id)
 	}
 	if b.connScore < 0 {
 		b.lg.Error("should not happen", zap.Int("connScore", b.connScore))
