@@ -305,8 +305,6 @@ func (router *ScoreBasedRouter) updateBackendHealth(healthResults observer.Healt
 			if health.Healthy {
 				serverVersion = health.ServerVersion
 			}
-		} else {
-			router.logger.Info("new and unhealthy", zap.String("addr", addr))
 		}
 		supportRedirection = health.SupportRedirection && supportRedirection
 	}

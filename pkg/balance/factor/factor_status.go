@@ -4,8 +4,6 @@
 package factor
 
 import (
-	"strings"
-
 	"github.com/pingcap/tiproxy/lib/config"
 	"go.uber.org/zap"
 )
@@ -33,7 +31,6 @@ type FactorStatus struct {
 }
 
 func NewFactorStatus(lg *zap.Logger) *FactorStatus {
-	lg.Info("new factor status", zap.Stack("stack"))
 	return &FactorStatus{
 		bitNum:   1,
 		snapshot: make(map[string]statusBackendSnapshot),
@@ -61,10 +58,6 @@ func (fs *FactorStatus) updateSnapshot(backends []scoredBackend) {
 	for i := 0; i < len(backends); i++ {
 		var balanceCount float64
 		addr := backends[i].Addr()
-		if strings.HasPrefix(addr, "tc-tidb-2") {
-			_, ok := fs.snapshot[addr]
-			fs.lg.Debug("tidb-2", zap.Bool("healthy", backends[i].Healthy()), zap.Bool("exists", ok), zap.Any("factor", fs))
-		}
 		if !backends[i].Healthy() {
 			snapshot, existSnapshot := fs.snapshot[addr]
 			if existSnapshot && snapshot.balanceCount > 0.0001 {
@@ -76,7 +69,8 @@ func (fs *FactorStatus) updateSnapshot(backends []scoredBackend) {
 					fs.lg.Info("update status risk",
 						zap.String("addr", addr),
 						zap.Float64("balance_count", balanceCount),
-						zap.Int("conn_score", backends[i].ConnScore()))
+						zap.Int("conn_score", backends[i].ConnScore()),
+						zap.Int("snapshots_before", len(fs.snapshot)))
 				}
 			}
 		}
@@ -84,8 +78,11 @@ func (fs *FactorStatus) updateSnapshot(backends []scoredBackend) {
 			balanceCount: balanceCount,
 		}
 	}
+	fs.lg.Info("snapshots", zap.Int("was", len(fs.snapshot)), zap.Int("is", len(snapshots)))
+	if len(fs.snapshot) > len(snapshots) {
+		fs.lg.Info("decrease", zap.Stack("stack"))
+	}
 	fs.snapshot = snapshots
-	fs.lg.Info("snapshots", zap.Int("len", len(snapshots)))
 }
 
 func (fs *FactorStatus) ScoreBitNum() int {
