@@ -102,11 +102,15 @@ func newBackendWrapper(addr string, health observer.BackendHealth, lg *zap.Logge
 		lg:       lg.With(zap.String("backend", addr)),
 	}
 	wrapper.setHealth(health)
+	wrapper.lg.Info("newBackendWrapper", zap.Bool("healthy", health.Healthy), zap.Stack("stack"))
 	return wrapper
 }
 
 func (b *backendWrapper) setHealth(health observer.BackendHealth) {
 	b.mu.Lock()
+	if b.mu.BackendHealth.Healthy != health.Healthy {
+		b.lg.Info("healthy changed", zap.Bool("new", health.Healthy), zap.Stack("stack"))
+	}
 	b.mu.BackendHealth = health
 	b.mu.Unlock()
 }

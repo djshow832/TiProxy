@@ -77,6 +77,9 @@ func (fs *FactorStatus) updateSnapshot(backends []scoredBackend) {
 			balanceCount: balanceCount,
 		}
 	}
+	if len(fs.snapshot) != len(snapshots) {
+		fs.lg.Debug("snapshot length changes", zap.Any("was", fs.snapshot), zap.Any("is", snapshots))
+	}
 	fs.snapshot = snapshots
 }
 
