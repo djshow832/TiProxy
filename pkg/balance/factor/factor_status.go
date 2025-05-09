@@ -4,6 +4,8 @@
 package factor
 
 import (
+	"strings"
+
 	"github.com/pingcap/tiproxy/lib/config"
 	"go.uber.org/zap"
 )
@@ -58,6 +60,10 @@ func (fs *FactorStatus) updateSnapshot(backends []scoredBackend) {
 	for i := 0; i < len(backends); i++ {
 		var balanceCount float64
 		addr := backends[i].Addr()
+		if strings.HasPrefix(addr, "tc-tidb-2") {
+			s, ok := fs.snapshot[addr]
+			fs.lg.Debug("tidb-2", zap.Bool("healthy", backends[i].Healthy()), zap.Bool("exists", ok), zap.Float64("balance", s.balanceCount))
+		}
 		if !backends[i].Healthy() {
 			snapshot, existSnapshot := fs.snapshot[addr]
 			if existSnapshot && snapshot.balanceCount > 0.0001 {
@@ -76,9 +82,6 @@ func (fs *FactorStatus) updateSnapshot(backends []scoredBackend) {
 		snapshots[addr] = statusBackendSnapshot{
 			balanceCount: balanceCount,
 		}
-	}
-	if len(fs.snapshot) != len(snapshots) {
-		fs.lg.Debug("snapshot length changes", zap.Any("was", fs.snapshot), zap.Any("is", snapshots))
 	}
 	fs.snapshot = snapshots
 }
