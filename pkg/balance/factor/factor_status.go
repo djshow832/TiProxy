@@ -33,6 +33,7 @@ type FactorStatus struct {
 }
 
 func NewFactorStatus(lg *zap.Logger) *FactorStatus {
+	lg.Info("new factor status", zap.Stack("stack"))
 	return &FactorStatus{
 		bitNum:   1,
 		snapshot: make(map[string]statusBackendSnapshot),
@@ -61,8 +62,8 @@ func (fs *FactorStatus) updateSnapshot(backends []scoredBackend) {
 		var balanceCount float64
 		addr := backends[i].Addr()
 		if strings.HasPrefix(addr, "tc-tidb-2") {
-			s, ok := fs.snapshot[addr]
-			fs.lg.Debug("tidb-2", zap.Bool("healthy", backends[i].Healthy()), zap.Bool("exists", ok), zap.Float64("balance", s.balanceCount))
+			_, ok := fs.snapshot[addr]
+			fs.lg.Debug("tidb-2", zap.Bool("healthy", backends[i].Healthy()), zap.Bool("exists", ok), zap.Any("factor", fs))
 		}
 		if !backends[i].Healthy() {
 			snapshot, existSnapshot := fs.snapshot[addr]
@@ -84,6 +85,7 @@ func (fs *FactorStatus) updateSnapshot(backends []scoredBackend) {
 		}
 	}
 	fs.snapshot = snapshots
+	fs.lg.Info("snapshots", zap.Int("len", len(snapshots)))
 }
 
 func (fs *FactorStatus) ScoreBitNum() int {
