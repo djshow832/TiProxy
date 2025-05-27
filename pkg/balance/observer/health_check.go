@@ -76,15 +76,24 @@ func (dhc *DefaultHealthCheck) Check(ctx context.Context, addr string, info *Bac
 	if !dhc.cfg.Enable {
 		return bh
 	}
+	startTime := time.Now()
 	dhc.checkStatusPort(ctx, info, bh)
+	endTime := time.Now()
+	bh.checkStatusDuration = endTime.Sub(startTime)
 	if !bh.Healthy {
 		return bh
 	}
+	startTime = endTime
 	dhc.checkSqlPort(ctx, addr, bh)
+	endTime = time.Now()
+	bh.checkSqlDuration = endTime.Sub(startTime)
 	if !bh.Healthy {
 		return bh
 	}
+	startTime = endTime
 	dhc.queryConfig(ctx, info, bh, lastBh)
+	endTime = time.Now()
+	bh.checkConfigDuration = endTime.Sub(startTime)
 	return bh
 }
 

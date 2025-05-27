@@ -5,6 +5,7 @@ package observer
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -92,6 +93,7 @@ func (bo *DefaultBackendObserver) observe(ctx context.Context) {
 	for ctx.Err() == nil {
 		startTime := time.Now()
 		backendInfo, err := bo.fetcher.GetBackendList(ctx)
+		fetchEndTime := time.Now()
 		var result HealthResult
 		if err != nil {
 			bo.logger.Error("fetching backends encounters error", zap.Error(err))
@@ -104,6 +106,16 @@ func (bo *DefaultBackendObserver) observe(ctx context.Context) {
 		bo.notifySubscribers(ctx, result)
 
 		cost := time.Since(startTime)
+		if cost > 3*time.Second {
+			fields := []zap.Field{
+				zap.Duration("cost", cost),
+				zap.Duration("fetch", fetchEndTime.Sub(startTime)),
+			}
+			for addr, backend := range result.backends {
+				fields = append(fields, zap.String(addr, fmt.Sprintf("sql %s status %s config %s", backend.checkSqlDuration, backend.checkStatusDuration, backend.checkConfigDuration)))
+			}
+			bo.logger.Info("health check cost too long", fields...)
+		}
 		metrics.HealthCheckCycleGauge.Set(cost.Seconds())
 		wait := bo.healthCheckConfig.Interval - cost
 		if wait > 0 {

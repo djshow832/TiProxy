@@ -19,6 +19,10 @@ type BackendHealth struct {
 	ServerVersion string
 	// The last time checking the signing cert.
 	lastCheckSigningCertTime time.Time
+	// The duration of health check.
+	checkStatusDuration time.Duration
+	checkSqlDuration    time.Duration
+	checkConfigDuration time.Duration
 	// Whether the backend has set the signing cert. If not, the connection redirection will be disabled.
 	SupportRedirection bool
 	// Whether the backend in the same zone with TiProxy. If TiProxy location is undefined, take all backends as local.
