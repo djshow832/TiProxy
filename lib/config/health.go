@@ -11,8 +11,8 @@ type HealthInfo struct {
 
 const (
 	healthCheckInterval      = 3 * time.Second
-	healthCheckMaxRetries    = 3
-	healthCheckRetryInterval = 1 * time.Second
+	healthCheckMaxRetries    = 2
+	healthCheckRetryInterval = 100 * time.Millisecond
 	healthCheckTimeout       = 2 * time.Second
 	readMetricsInterval      = 5 * time.Second
 	readMetricsTimeout       = 3 * time.Second

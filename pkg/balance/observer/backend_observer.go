@@ -112,7 +112,10 @@ func (bo *DefaultBackendObserver) observe(ctx context.Context) {
 				zap.Duration("fetch", fetchEndTime.Sub(startTime)),
 			}
 			for addr, backend := range result.backends {
-				fields = append(fields, zap.String(addr, fmt.Sprintf("sql %s status %s config %s", backend.checkSqlDuration, backend.checkStatusDuration, backend.checkConfigDuration)))
+				fields = append(fields, zap.String(addr, fmt.Sprintf("sql %d status %d config %d",
+					backend.checkSqlDuration.Milliseconds(),
+					backend.checkStatusDuration.Milliseconds(),
+					backend.checkConfigDuration.Milliseconds())))
 			}
 			bo.logger.Info("health check cost too long", fields...)
 		}
