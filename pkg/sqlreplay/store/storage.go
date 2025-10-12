@@ -55,15 +55,18 @@ func NewStorage(path string, lg *zap.Logger) (storage.ExternalStorage, error) {
 func (s *RetryableStorage) open() error {
 	backend, err := storage.ParseBackend(s.path, &storage.BackendOptions{})
 	if err != nil {
+		s.lg.Info("parse backend failed", zap.NamedError("parse_err", err))
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 	defer cancel()
 	externalStorage, err := storage.New(ctx, backend, &storage.ExternalStorageOptions{})
 	if err != nil {
+		s.lg.Info("new external storage failed", zap.NamedError("new_err", err))
 		return err
 	}
 	s.ExternalStorage = externalStorage
+	s.lg.Info("storage opened", zap.String("path", s.path))
 	return nil
 }
 
