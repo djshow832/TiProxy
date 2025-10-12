@@ -93,7 +93,7 @@ type ReplayConfig struct {
 	reportLogInterval time.Duration
 }
 
-func (cfg *ReplayConfig) Validate() ([]storage.ExternalStorage, error) {
+func (cfg *ReplayConfig) Validate(lg *zap.Logger) ([]storage.ExternalStorage, error) {
 	if cfg.Input == "" {
 		return nil, errors.New("input is required")
 	}
@@ -105,7 +105,7 @@ func (cfg *ReplayConfig) Validate() ([]storage.ExternalStorage, error) {
 	var err error
 	for _, input := range inputs {
 		var storage storage.ExternalStorage
-		storage, err = store.NewStorage(input)
+		storage, err = store.NewStorage(input, lg)
 		if err != nil {
 			for _, s := range storages {
 				s.Close()
@@ -190,7 +190,7 @@ func NewReplay(lg *zap.Logger, idMgr *id.IDManager) *replay {
 }
 
 func (r *replay) Start(cfg ReplayConfig, backendTLSConfig *tls.Config, hsHandler backend.HandshakeHandler, bcConfig *backend.BCConfig) error {
-	storages, err := cfg.Validate()
+	storages, err := cfg.Validate(r.lg)
 	if err != nil {
 		for _, s := range storages {
 			s.Close()

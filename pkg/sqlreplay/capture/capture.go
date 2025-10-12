@@ -71,11 +71,11 @@ type CaptureConfig struct {
 	maxPendingCommands int
 }
 
-func (cfg *CaptureConfig) Validate() (storage.ExternalStorage, error) {
+func (cfg *CaptureConfig) Validate(lg *zap.Logger) (storage.ExternalStorage, error) {
 	if cfg.Output == "" {
 		return nil, errors.New("output is required")
 	}
-	storage, err := store.NewStorage(cfg.Output)
+	storage, err := store.NewStorage(cfg.Output, lg)
 	if err != nil {
 		return storage, err
 	}
@@ -141,7 +141,7 @@ func NewCapture(lg *zap.Logger) *capture {
 }
 
 func (c *capture) Start(cfg CaptureConfig) error {
-	storage, err := cfg.Validate()
+	storage, err := cfg.Validate(c.lg)
 	if err != nil {
 		storage.Close()
 		return err
