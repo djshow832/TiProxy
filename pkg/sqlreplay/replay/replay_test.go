@@ -111,7 +111,7 @@ func TestValidateCfg(t *testing.T) {
 	}
 
 	for i, cfg := range cfgs {
-		storage, err := cfg.Validate()
+		storage, err := cfg.Validate(zap.NewNop())
 		require.Error(t, err, "case %d", i)
 		if storage != nil && !reflect.ValueOf(storage).IsNil() {
 			for _, s := range storage {
@@ -182,7 +182,7 @@ func TestReplaySpeed(t *testing.T) {
 func TestProgress(t *testing.T) {
 	dir := t.TempDir()
 	meta := store.NewMeta(10*time.Second, 10, 0, "")
-	storage, err := store.NewStorage(dir)
+	storage, err := store.NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	require.NoError(t, meta.Write(storage))
@@ -236,7 +236,7 @@ func TestProgress(t *testing.T) {
 func TestPendingCmds(t *testing.T) {
 	dir := t.TempDir()
 	meta := store.NewMeta(10*time.Second, 20, 0, "")
-	storage, err := store.NewStorage(dir)
+	storage, err := store.NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	require.NoError(t, meta.Write(storage))
@@ -290,7 +290,7 @@ func TestPendingCmds(t *testing.T) {
 func TestLoadEncryptionKey(t *testing.T) {
 	dir := t.TempDir()
 	meta := store.NewMeta(10*time.Second, 20, 0, store.EncryptAes)
-	storage, err := store.NewStorage(dir)
+	storage, err := store.NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	require.NoError(t, meta.Write(storage))

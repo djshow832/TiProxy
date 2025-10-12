@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestMeta(t *testing.T) {
 	dir := t.TempDir()
-	storage, err := NewStorage(dir)
+	storage, err := NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	for range 2 {
@@ -35,7 +36,7 @@ func TestMeta(t *testing.T) {
 
 func TestPrecheckMeta(t *testing.T) {
 	dir := t.TempDir()
-	storage, err := NewStorage(dir)
+	storage, err := NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	require.NoError(t, PreCheckMeta(storage))

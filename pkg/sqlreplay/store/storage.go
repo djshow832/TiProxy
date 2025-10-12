@@ -117,6 +117,7 @@ func (s *RetryableStorage) Open(ctx context.Context, path string, option *storag
 	err := s.retry(func() error {
 		var err error
 		reader, err = s.ExternalStorage.Open(ctx, path, option)
+		s.lg.Info("opening", zap.String("path", path), zap.Error(err))
 		return err
 	})
 	return reader, err

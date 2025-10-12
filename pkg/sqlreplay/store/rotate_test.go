@@ -29,7 +29,7 @@ import (
 
 func TestFileRotation(t *testing.T) {
 	tmpDir := t.TempDir()
-	storage, err := NewStorage(tmpDir)
+	storage, err := NewStorage(tmpDir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	writer, err := newRotateWriter(zap.NewNop(), storage, WriterCfg{
@@ -85,7 +85,7 @@ func TestCompress(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	storage, err := NewStorage(tmpDir)
+	storage, err := NewStorage(tmpDir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	for i, test := range tests {
@@ -242,7 +242,7 @@ func TestIterateFiles(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	storage, err := NewStorage(dir)
+	storage, err := NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	lg, _ := logger.CreateLoggerForTest(t)
@@ -280,7 +280,7 @@ func TestIterateFiles(t *testing.T) {
 
 func TestReadGZip(t *testing.T) {
 	tmpDir := t.TempDir()
-	storage, err := NewStorage(tmpDir)
+	storage, err := NewStorage(tmpDir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	for _, compress := range []bool{true, false} {
@@ -330,7 +330,7 @@ func TestReadGZip(t *testing.T) {
 
 func TestCompressAndEncrypt(t *testing.T) {
 	tmpDir := t.TempDir()
-	storage, err := NewStorage(tmpDir)
+	storage, err := NewStorage(tmpDir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	key := genAesKey()
@@ -450,7 +450,7 @@ func TestFilterFileNameByStartTime(t *testing.T) {
 		}
 		require.NoError(t, f.Close())
 	}
-	storage, err := NewStorage(dir)
+	storage, err := NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	lg, _ := logger.CreateLoggerForTest(t)

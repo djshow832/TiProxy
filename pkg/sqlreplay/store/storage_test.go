@@ -11,12 +11,13 @@ import (
 
 	"github.com/pingcap/tidb/br/pkg/storage"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestStorage(t *testing.T) {
 	// write a file
 	dir := t.TempDir()
-	st, err := NewStorage(dir)
+	st, err := NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	fileWriter, err := st.Create(context.Background(), "test_file", &storage.WriterOption{})
 	require.NoError(t, err)
@@ -38,7 +39,7 @@ func TestStorage(t *testing.T) {
 
 	// write fails if the directory is a file
 	path := filepath.Join(dir, "test_file")
-	st, err = NewStorage(path)
+	st, err = NewStorage(path, zap.NewNop())
 	require.NoError(t, err)
 	fileWriter, err = st.Create(context.Background(), "test", &storage.WriterOption{})
 	require.Error(t, err)
@@ -47,7 +48,7 @@ func TestStorage(t *testing.T) {
 
 	// if the file doesn't exist, create a one
 	path = filepath.Join(dir, "test_dir")
-	st, err = NewStorage(path)
+	st, err = NewStorage(path, zap.NewNop())
 	require.NoError(t, err)
 	fileWriter, err = st.Create(context.Background(), "test", &storage.WriterOption{})
 	require.NoError(t, err)

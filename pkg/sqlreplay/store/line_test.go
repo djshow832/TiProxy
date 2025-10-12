@@ -13,6 +13,7 @@ import (
 
 	"github.com/pingcap/tiproxy/lib/util/logger"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestReadLine(t *testing.T) {
@@ -88,7 +89,7 @@ func TestReadLine(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	storage, err := NewStorage(dir)
+	storage, err := NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	lg, _ := logger.CreateLoggerForTest(t)
@@ -191,7 +192,7 @@ func TestRead(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	storage, err := NewStorage(dir)
+	storage, err := NewStorage(dir, zap.NewNop())
 	require.NoError(t, err)
 	defer storage.Close()
 	lg, _ := logger.CreateLoggerForTest(t)
