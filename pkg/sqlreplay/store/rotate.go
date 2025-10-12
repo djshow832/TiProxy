@@ -248,7 +248,7 @@ func (r *rotateReader) nextReader() error {
 // The return value of the function indicates whether this file is valid or not.
 // For S3 storage and audit log format, it'll stop walking once the fn returns true.
 func (r *rotateReader) walkFile(ctx context.Context, fn func(string, int64) (bool, error)) error {
-	if s3, ok := r.storage.(*storage.S3Storage); ok && r.cfg.Format == cmd.FormatAuditLogPlugin {
+	if s3, ok := r.storage.(*RetryableStorage).ExternalStorage.(*storage.S3Storage); ok && r.cfg.Format == cmd.FormatAuditLogPlugin {
 		return r.walkS3ForAuditLogFile(ctx, s3.GetS3APIHandle(), s3.GetOptions(), fn)
 	}
 	return r.storage.WalkDir(ctx, &storage.WalkOption{}, func(name string, size int64) error {
