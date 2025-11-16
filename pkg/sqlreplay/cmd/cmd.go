@@ -76,6 +76,7 @@ type Command struct {
 	EndTs    time.Time
 	// Logged only in native log.
 	Success bool
+	Insert  bool
 }
 
 func NewCommand(packet []byte, startTs time.Time, connID uint64) *Command {

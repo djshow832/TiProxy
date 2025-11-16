@@ -190,12 +190,13 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 			continue
 		}
 
+		insert := false
 		if parseCommand(kvs[auditPluginKeyCommand]) == "Execute" {
 			if strings.Contains(kvs[auditPluginKeySQL], "dh_pay_order_summary") &&
 				(kvs[auditPluginKeyStmtType] == "Insert" || kvs[auditPluginKeyStmtType] == "Update" || kvs[auditPluginKeyStmtType] == "Delete") {
 				params := kvs[auditPluginKeyParams]
 				if strings.Contains(params, "20251104") && strings.Contains(params, "401329") && strings.Contains(params, "540082") && strings.Contains(params, "180562") && strings.Contains(params, "9861") {
-					decoder.lg.Warn(hack.String(line))
+					insert = true
 				}
 			}
 		}
@@ -209,6 +210,7 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 			cmd.FileName = filename
 			cmd.Line = lineIdx
 			cmd.EndTs = endTs
+			cmd.Insert = insert
 		}
 		if len(cmds) > 1 {
 			decoder.pendingCmds = cmds[1:]

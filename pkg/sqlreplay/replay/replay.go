@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -382,6 +383,11 @@ func (r *replay) Start(cfg ReplayConfig, backendTLSConfig *tls.Config, hsHandler
 	return nil
 }
 
+type ts struct {
+	startTs time.Time
+	endTs   time.Time
+}
+
 func (r *replay) readCommands(ctx context.Context) {
 	var decoder decoder
 	var err error
@@ -411,7 +417,8 @@ func (r *replay) readCommands(ctx context.Context) {
 		}
 	}
 
-	var captureStartTs, replayStartTs time.Time
+	tses := make([]ts, 0, 1<<20)
+	// var captureStartTs, replayStartTs time.Time
 	conns := make(map[uint64]conn.Conn) // both alive and dead connections
 	connCount := 0                      // alive connection count
 	maxPendingCmds := int64(0)
@@ -448,51 +455,68 @@ func (r *replay) readCommands(ctx context.Context) {
 			// fallback to StartTs if EndTs is not available.
 			r.replayStats.CurCmdEndTs.Store(command.StartTs.UnixNano())
 		}
-		if captureStartTs.IsZero() {
-			// first command
-			captureStartTs = command.StartTs
-			replayStartTs = time.Now()
-			r.replayStats.ReplayStartTs.Store(replayStartTs.UnixNano())
-			r.replayStats.FirstCmdTs.Store(command.StartTs.UnixNano())
-		} else {
-			pendingCmds := r.replayStats.PendingCmds.Load()
-			if pendingCmds > maxPendingCmds {
-				maxPendingCmds = pendingCmds
-			}
-			metrics.ReplayPendingCmdsGauge.Set(float64(pendingCmds))
-			// If slowing down still doesn't help, abort the replay to avoid OOM.
-			if pendingCmds > r.cfg.abortThreshold {
-				err = errors.Errorf("too many pending commands, quit replay")
-				r.lg.Error("too many pending commands, quit replay", zap.Int64("pending_cmds", pendingCmds))
-				break
-			}
+		if command.Type != pnet.ComStmtExecute || !command.Insert {
+			continue
+		}
+		tses = append(tses, ts{startTs: command.StartTs, endTs: command.EndTs})
+		/*
+			if captureStartTs.IsZero() {
+				// first command
+				captureStartTs = command.StartTs
+				replayStartTs = time.Now()
+				r.replayStats.ReplayStartTs.Store(replayStartTs.UnixNano())
+				r.replayStats.FirstCmdTs.Store(command.StartTs.UnixNano())
+			} else {
+				pendingCmds := r.replayStats.PendingCmds.Load()
+				if pendingCmds > maxPendingCmds {
+					maxPendingCmds = pendingCmds
+				}
+				metrics.ReplayPendingCmdsGauge.Set(float64(pendingCmds))
+				// If slowing down still doesn't help, abort the replay to avoid OOM.
+				if pendingCmds > r.cfg.abortThreshold {
+					err = errors.Errorf("too many pending commands, quit replay")
+					r.lg.Error("too many pending commands, quit replay", zap.Int64("pending_cmds", pendingCmds))
+					break
+				}
 
-			// Do not calculate the wait time by the duration since last command because the go scheduler
-			// may wait a little bit longer than expected, and then the difference becomes larger and larger.
-			expectedInterval := command.StartTs.Sub(captureStartTs)
-			if r.cfg.Speed != 1 {
-				expectedInterval = time.Duration(float64(expectedInterval) / r.cfg.Speed)
-			}
-			expectedInterval = max(time.Until(replayStartTs.Add(expectedInterval)), 0)
-			// If there are too many pending commands, slow it down to reduce memory usage.
-			if pendingCmds > r.cfg.slowDownThreshold {
-				extraWait := time.Duration(pendingCmds-r.cfg.slowDownThreshold) * r.cfg.slowDownFactor
-				extraWaitTime += extraWait
-				expectedInterval += extraWait
-				metrics.ReplayWaitTime.Set(float64(extraWaitTime.Nanoseconds()))
-				r.replayStats.ExtraWaitTime.Store(extraWaitTime.Nanoseconds())
-			}
-			if expectedInterval > time.Microsecond {
-				r.replayStats.TotalWaitTime.Add(expectedInterval.Nanoseconds())
-				select {
-				case <-ctx.Done():
-				case <-time.After(expectedInterval):
+				// Do not calculate the wait time by the duration since last command because the go scheduler
+				// may wait a little bit longer than expected, and then the difference becomes larger and larger.
+				expectedInterval := command.StartTs.Sub(captureStartTs)
+				if r.cfg.Speed != 1 {
+					expectedInterval = time.Duration(float64(expectedInterval) / r.cfg.Speed)
+				}
+				expectedInterval = max(time.Until(replayStartTs.Add(expectedInterval)), 0)
+				// If there are too many pending commands, slow it down to reduce memory usage.
+				if pendingCmds > r.cfg.slowDownThreshold {
+					extraWait := time.Duration(pendingCmds-r.cfg.slowDownThreshold) * r.cfg.slowDownFactor
+					extraWaitTime += extraWait
+					expectedInterval += extraWait
+					metrics.ReplayWaitTime.Set(float64(extraWaitTime.Nanoseconds()))
+					r.replayStats.ExtraWaitTime.Store(extraWaitTime.Nanoseconds())
+				}
+				if expectedInterval > time.Microsecond {
+					r.replayStats.TotalWaitTime.Add(expectedInterval.Nanoseconds())
+					select {
+					case <-ctx.Done():
+					case <-time.After(expectedInterval):
+					}
 				}
 			}
+			if ctx.Err() == nil {
+				r.executeCmd(ctx, command, conns, &connCount)
+			}*/
+	}
+	slices.SortFunc(tses, func(a, b ts) int {
+		if a.startTs.Before(b.startTs) {
+			return -1
 		}
-		if ctx.Err() == nil {
-			r.executeCmd(ctx, command, conns, &connCount)
+		if a.startTs.After(b.startTs) {
+			return 1
 		}
+		return 0
+	})
+	for _, ts := range tses {
+		r.lg.Info("", zap.Time("start_ts", ts.startTs), zap.Time("end_ts", ts.endTs))
 	}
 	r.lg.Info("finished decoding commands, draining connections", zap.Int64("max_pending_cmds", maxPendingCmds),
 		zap.Duration("extra_wait_time", extraWaitTime),
