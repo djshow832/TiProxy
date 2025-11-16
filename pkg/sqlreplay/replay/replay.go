@@ -417,7 +417,7 @@ func (r *replay) readCommands(ctx context.Context) {
 		}
 	}
 
-	tses := make([]ts, 0, 1<<20)
+	tses := make([]*cmd.Command, 0, 1<<20)
 	// var captureStartTs, replayStartTs time.Time
 	conns := make(map[uint64]conn.Conn) // both alive and dead connections
 	connCount := 0                      // alive connection count
@@ -458,7 +458,7 @@ func (r *replay) readCommands(ctx context.Context) {
 		if command.Type != pnet.ComStmtExecute || !command.Insert {
 			continue
 		}
-		tses = append(tses, ts{startTs: command.StartTs, endTs: command.EndTs})
+		tses = append(tses, command)
 		/*
 			if captureStartTs.IsZero() {
 				// first command
@@ -506,17 +506,17 @@ func (r *replay) readCommands(ctx context.Context) {
 				r.executeCmd(ctx, command, conns, &connCount)
 			}*/
 	}
-	slices.SortFunc(tses, func(a, b ts) int {
-		if a.startTs.Before(b.startTs) {
+	slices.SortFunc(tses, func(a, b *cmd.Command) int {
+		if a.StartTs.Before(b.StartTs) {
 			return -1
 		}
-		if a.startTs.After(b.startTs) {
+		if a.StartTs.After(b.StartTs) {
 			return 1
 		}
 		return 0
 	})
 	for _, ts := range tses {
-		r.lg.Info("", zap.Time("start_ts", ts.startTs), zap.Time("end_ts", ts.endTs))
+		r.lg.Info(ts.Content)
 	}
 	r.lg.Info("finished decoding commands, draining connections", zap.Int64("max_pending_cmds", maxPendingCmds),
 		zap.Duration("extra_wait_time", extraWaitTime),

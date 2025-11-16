@@ -210,6 +210,9 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 			cmd.FileName = filename
 			cmd.Line = lineIdx
 			cmd.EndTs = endTs
+			if insert {
+				cmd.Content = hack.String(line)
+			}
 			cmd.Insert = insert
 		}
 		if len(cmds) > 1 {

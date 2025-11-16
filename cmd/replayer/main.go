@@ -69,6 +69,7 @@ func main() {
 					Level:   "info",
 					LogFile: config.LogFile{Filename: *logFile},
 				},
+				Simple: true,
 			},
 			API: config.API{
 				Addr: *pprofAddr,
