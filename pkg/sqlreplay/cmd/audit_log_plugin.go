@@ -127,7 +127,6 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 		if err != nil {
 			return nil, err
 		}
-		myLine := strings.Clone(string(line))
 		clear(kvs)
 		err = parseLog(kvs, hack.String(line))
 		if err != nil {
@@ -214,7 +213,6 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 			cmd.FileName = filename
 			cmd.Line = lineIdx
 			cmd.EndTs = endTs
-			cmd.Content = myLine
 		}
 		if len(cmds) > 1 {
 			decoder.pendingCmds = cmds[1:]
