@@ -515,11 +515,11 @@ func (r *replay) readCommands(ctx context.Context) {
 		}
 		return 0
 	})
-	var buf strings.Builder
+	f, _ := os.Create("/root/dry/upstream.log")
 	for _, ts := range tses {
-		buf.WriteString(fmt.Sprintf("start_ts=%s, end_ts=%s, latency=%s\n", ts.StartTs.String(), ts.EndTs.String(), ts.EndTs.Sub(ts.StartTs).String()))
+		f.WriteString(fmt.Sprintf("start_ts=%s, end_ts=%s, latency=%s\n", ts.StartTs.String(), ts.EndTs.String(), ts.EndTs.Sub(ts.StartTs).String()))
 	}
-	os.WriteFile("/root/dry/upstream.log", []byte(buf.String()), 0644)
+	f.Close()
 	r.lg.Info("finished decoding commands, draining connections", zap.Int64("max_pending_cmds", maxPendingCmds),
 		zap.Duration("extra_wait_time", extraWaitTime),
 		zap.Int("alive_conns", connCount),
