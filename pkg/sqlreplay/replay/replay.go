@@ -516,7 +516,7 @@ func (r *replay) readCommands(ctx context.Context) {
 		return 0
 	})
 	for _, ts := range tses {
-		r.lg.Info(ts.Content)
+		r.lg.Info(ts.Content, zap.Time("start_ts", ts.StartTs), zap.Time("end_ts", ts.EndTs))
 	}
 	r.lg.Info("finished decoding commands, draining connections", zap.Int64("max_pending_cmds", maxPendingCmds),
 		zap.Duration("extra_wait_time", extraWaitTime),
