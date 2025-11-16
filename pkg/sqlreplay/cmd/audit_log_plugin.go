@@ -200,6 +200,9 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 				}
 			}
 		}
+		if !insert {
+			continue
+		}
 		db := kvs[auditPluginKeyCurDB]
 		for _, cmd := range cmds {
 			cmd.Success = true
@@ -210,10 +213,7 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 			cmd.FileName = filename
 			cmd.Line = lineIdx
 			cmd.EndTs = endTs
-			if insert {
-				cmd.Content = string(line)
-			}
-			cmd.Insert = insert
+			cmd.Content = string(line)
 		}
 		if len(cmds) > 1 {
 			decoder.pendingCmds = cmds[1:]
