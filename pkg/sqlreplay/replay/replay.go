@@ -552,7 +552,7 @@ func (r *replay) constructDecoderForReader(ctx context.Context, reader cmd.LineR
 		return nil, err
 	}
 
-	cmdDecoder := cmd.NewCmdDecoder(r.cfg.Format)
+	cmdDecoder := cmd.NewCmdDecoder(r.cfg.Format, r.lg.Named("decoder"))
 	// It's better to filter out the commands in `readCommands` instead of `Decoder`. However,
 	// the connection state is maintained in decoder. Filtering out commands here will make it'
 	// impossible for decoder to know whether `use xxx` will be executed, and thus cannot maintain

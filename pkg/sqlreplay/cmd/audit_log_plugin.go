@@ -12,6 +12,7 @@ import (
 	"github.com/pingcap/tiproxy/lib/util/errors"
 	pnet "github.com/pingcap/tiproxy/pkg/proxy/net"
 	"github.com/siddontang/go/hack"
+	"go.uber.org/zap"
 )
 
 const (
@@ -51,11 +52,12 @@ type auditLogPluginConnCtx struct {
 	preparedStmtSql map[string]uint32
 }
 
-func NewAuditLogPluginDecoder() *AuditLogPluginDecoder {
+func NewAuditLogPluginDecoder(lg *zap.Logger) *AuditLogPluginDecoder {
 	return &AuditLogPluginDecoder{
 		connInfo:        make(map[uint64]auditLogPluginConnCtx),
 		kvs:             make(map[string]string, 25),
 		psCloseStrategy: PSCloseStrategyDirected,
+		lg:              lg,
 	}
 }
 
@@ -87,6 +89,7 @@ type AuditLogPluginDecoder struct {
 	// kvs is a reusable map to avoid too many allocations to store the KV
 	// for each line.
 	kvs map[string]string
+	lg  *zap.Logger
 }
 
 // ConnIDAllocator allocates connection IDs for new connections.
@@ -187,6 +190,15 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 			continue
 		}
 
+		if parseCommand(kvs[auditPluginKeyCommand]) == "Execute" {
+			if strings.Contains(kvs[auditPluginKeySQL], "dh_pay_order_summary") &&
+				(kvs[auditPluginKeyStmtType] == "Insert" || kvs[auditPluginKeyStmtType] == "Update" || kvs[auditPluginKeyStmtType] == "Delete") {
+				params := kvs[auditPluginKeyParams]
+				if strings.Contains(params, "20251104") && strings.Contains(params, "401329") && strings.Contains(params, "540082") && strings.Contains(params, "180562") && strings.Contains(params, "9861") {
+					decoder.lg.Warn(hack.String(line))
+				}
+			}
+		}
 		db := kvs[auditPluginKeyCurDB]
 		for _, cmd := range cmds {
 			cmd.Success = true
