@@ -74,7 +74,6 @@ type Command struct {
 	// Logged only in audit log.
 	StmtType string
 	EndTs    time.Time
-	Content  string
 	// Logged only in native log.
 	Success bool
 }
