@@ -517,7 +517,7 @@ func (r *replay) readCommands(ctx context.Context) {
 	})
 	f, _ := os.Create("/root/dry/upstream.log")
 	for _, ts := range tses {
-		f.WriteString(fmt.Sprintf("start_ts=%s, end_ts=%s, latency=%s\n", ts.StartTs.String(), ts.EndTs.String(), ts.EndTs.Sub(ts.StartTs).String()))
+		f.WriteString(fmt.Sprintf("start_ts=%s, end_ts=%s, conn_id=%d\n", ts.StartTs.String(), ts.EndTs.String(), ts.UpstreamConnID))
 	}
 	f.Close()
 	r.lg.Info("finished decoding commands, draining connections", zap.Int64("max_pending_cmds", maxPendingCmds),
