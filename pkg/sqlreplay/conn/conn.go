@@ -207,7 +207,8 @@ func (c *conn) Run(ctx context.Context) {
 				continue
 			}
 			startTime := time.Now()
-			if resp := c.backendConn.ExecuteCmd(ctx, command.Value.Payload); resp.Err != nil {
+			resp := c.backendConn.ExecuteCmd(ctx, command.Value.Payload)
+			if resp.Err != nil {
 				if errors.Is(resp.Err, backend.ErrClosing) || pnet.IsDisconnectError(resp.Err) {
 					c.replayStats.ExceptionCmds.Add(1)
 					c.exceptionCh <- NewOtherException(resp.Err, c.upstreamConnID)
@@ -216,11 +217,13 @@ func (c *conn) Run(ctx context.Context) {
 					curDB = ""
 					continue
 				}
-				if c.updateCmdForExecuteStmt(command.Value) {
-					c.replayStats.ExceptionCmds.Add(1)
-					c.exceptionCh <- NewFailException(resp.Err, command.Value)
-				}
-			} else {
+			}
+			// Always call updateCmdForExecuteStmt.
+			if c.updateCmdForExecuteStmt(command.Value) && resp.Err != nil {
+				c.replayStats.ExceptionCmds.Add(1)
+				c.exceptionCh <- NewFailException(resp.Err, command.Value)
+			}
+			if resp.Err == nil {
 				c.updatePreparedStmts(command.Value.CapturedPsID, command.Value.Payload, resp)
 			}
 			c.execInfoCh <- ExecInfo{
@@ -255,7 +258,7 @@ func (c *conn) isReadOnly(command *cmd.Command) bool {
 	return true
 }
 
-// update the params and sql text for the ComStmtExecute for recording errors.
+// update the params and sql text for the ComStmtExecute, used for recording exceptions and exec info.
 func (c *conn) updateCmdForExecuteStmt(command *cmd.Command) bool {
 	// updated before
 	if command.PreparedStmt != "" {
