@@ -506,6 +506,7 @@ func (r *replay) readCommands(ctx context.Context) {
 				r.executeCmd(ctx, command, conns, &connCount)
 			}*/
 	}
+	r.lg.Info("start to output")
 	slices.SortFunc(tses, func(a, b *cmd.Command) int {
 		if a.StartTs.Before(b.StartTs) {
 			return -1
