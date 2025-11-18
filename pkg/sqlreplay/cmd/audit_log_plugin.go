@@ -200,7 +200,7 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 				}
 			}
 		}
-		if !insert {
+		if !insert && eventClass != auditPluginClassConnect {
 			continue
 		}
 		db := kvs[auditPluginKeyCurDB]
