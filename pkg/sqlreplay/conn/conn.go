@@ -206,6 +206,7 @@ func (c *conn) Run(ctx context.Context) {
 				c.exceptionCh <- NewFailException(errors.Errorf("prepared statement ID %d not found", command.Value.CapturedPsID), command.Value)
 				continue
 			}
+			updateSuccess := c.updateCmdForExecuteStmt(command.Value)
 			startTime := time.Now()
 			resp := c.backendConn.ExecuteCmd(ctx, command.Value.Payload)
 			if resp.Err != nil {
@@ -218,18 +219,17 @@ func (c *conn) Run(ctx context.Context) {
 					continue
 				}
 			}
-			// Always call updateCmdForExecuteStmt.
-			if c.updateCmdForExecuteStmt(command.Value) && resp.Err != nil {
+			c.execInfoCh <- ExecInfo{
+				Command:   command.Value,
+				StartTime: startTime,
+				CostTime:  time.Since(startTime),
+			}
+			if updateSuccess && resp.Err != nil {
 				c.replayStats.ExceptionCmds.Add(1)
 				c.exceptionCh <- NewFailException(resp.Err, command.Value)
 			}
 			if resp.Err == nil {
 				c.updatePreparedStmts(command.Value.CapturedPsID, command.Value.Payload, resp)
-			}
-			c.execInfoCh <- ExecInfo{
-				Command:   command.Value,
-				StartTime: startTime,
-				CostTime:  time.Since(startTime),
 			}
 			c.replayStats.ReplayedCmds.Add(1)
 		}

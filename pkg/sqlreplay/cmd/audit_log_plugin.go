@@ -41,8 +41,9 @@ const (
 )
 
 type auditLogPluginConnCtx struct {
-	connID   uint64
-	lastPsID uint32
+	connID       uint64
+	lastPsID     uint32
+	lastCmdEndTs time.Time
 
 	// preparedStmt contains the prepared statement IDs that are not closed yet, only used for `ps-close=directed`.
 	preparedStmt map[uint32]struct{}
@@ -169,7 +170,7 @@ func (decoder *AuditLogPluginDecoder) Decode(reader LineReader) (*Command, error
 		eventClass := kvs[auditPluginKeyClass]
 		switch eventClass {
 		case auditPluginClassGeneral, auditPluginClassTableAccess:
-			cmds, err = decoder.parseGeneralEvent(kvs, upstreamConnID)
+			cmds, err = decoder.parseGeneralEvent(kvs, startTs, endTs, upstreamConnID)
 		case auditPluginClassConnect:
 			var c *Command
 			c, err = decoder.parseConnectEvent(kvs, upstreamConnID)
@@ -405,16 +406,21 @@ func parseSingleParam(value string) (any, error) {
 	return nil, errors.Errorf("unknown param type: %s", tpStr)
 }
 
-func (decoder *AuditLogPluginDecoder) parseGeneralEvent(kvs map[string]string, connID uint64) ([]*Command, error) {
+func (decoder *AuditLogPluginDecoder) parseGeneralEvent(kvs map[string]string, startTs, endTs time.Time, connID uint64) ([]*Command, error) {
+	event, ok := kvs[auditPluginKeyEvent]
+	if !ok || event != auditPluginEventEnd {
+		// Old version doesn't have the EVENT key.
+		// The STARTING event is wrong, we only care about the COMPLETED event.
+		return nil, nil
+	}
+
 	connInfo := decoder.connInfo[connID]
 	if connInfo.preparedStmt == nil {
 		connInfo.preparedStmt = make(map[uint32]struct{})
 		connInfo.preparedStmtSql = make(map[string]uint32)
 	}
-	event, ok := kvs[auditPluginKeyEvent]
-	if !ok || event != auditPluginEventEnd {
-		// Old version doesn't have the EVENT key.
-		// The STARTING event is wrong, we only care about the COMPLETED event.
+	// Transaction retrial records duplicated SQL with the same start TS.
+	if connInfo.lastCmdEndTs.After(startTs.Add(2 * time.Millisecond)) {
 		return nil, nil
 	}
 
@@ -532,6 +538,10 @@ func (decoder *AuditLogPluginDecoder) parseGeneralEvent(kvs map[string]string, c
 		}
 		// Ignore Quit since disconnection is handled in parseConnectEvent.
 	}
+	if len(cmds) > 0 {
+		connInfo.lastCmdEndTs = endTs
+	}
+	decoder.connInfo[connID] = connInfo
 	return cmds, nil
 }
 
