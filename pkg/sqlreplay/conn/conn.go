@@ -190,6 +190,11 @@ func (c *conn) Run(ctx context.Context) {
 				c.onExecuteFailed(command.Value, err)
 				continue
 			}
+			isHack := false
+			if command.Value.Type == pnet.ComStmtExecute && command.Value.StmtType == "Insert" && command.Value.Digest() == "02b6af97af96a5b8cc8b41dbdb506dce163b56fbac2163cc2d11e9942c11063d" {
+				isHack = true
+				c.backendConn.ExecuteCmd(ctx, append([]byte{pnet.ComQuery.Byte()}, []byte("BEGIN PESSIMISTIC")...))
+			}
 			startTime := time.Now()
 			resp := c.backendConn.ExecuteCmd(ctx, command.Value.Payload)
 			latency := time.Since(startTime)
@@ -204,6 +209,9 @@ func (c *conn) Run(ctx context.Context) {
 				c.onExecuteFailed(command.Value, resp.Err)
 			} else {
 				c.updatePreparedStmts(command.Value.CapturedPsID, command.Value.Payload, resp)
+			}
+			if isHack {
+				c.backendConn.ExecuteCmd(ctx, append([]byte{pnet.ComQuery.Byte()}, []byte("COMMIT")...))
 			}
 			// Logging should not block replaying.
 			select {
