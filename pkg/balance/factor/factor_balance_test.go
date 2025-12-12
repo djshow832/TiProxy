@@ -33,62 +33,62 @@ func TestRouteWithOneFactor(t *testing.T) {
 		{
 			scores:   []int{10},
 			idxRange: []int{0},
-			policy:   config.RoutePolicyRandom,
+			policy:   config.RoutingPolicyRandom,
 		},
 		{
 			scores:   []int{10, 20},
 			idxRange: []int{0, 1},
-			policy:   config.RoutePolicyRandom,
+			policy:   config.RoutingPolicyRandom,
 		},
 		{
 			scores:   []int{10, 20, 30},
 			idxRange: []int{0, 1, 2},
-			policy:   config.RoutePolicyRandom,
+			policy:   config.RoutingPolicyRandom,
 		},
 		{
 			scores:   []int{30, 20, 10},
 			idxRange: []int{0, 1, 2},
-			policy:   config.RoutePolicyRandom,
+			policy:   config.RoutingPolicyRandom,
 		},
 		{
 			scores:   []int{30, 11, 10},
 			idxRange: []int{0, 1, 2},
-			policy:   config.RoutePolicyRandom,
+			policy:   config.RoutingPolicyRandom,
 		},
 		{
 			scores:   []int{11, 11, 10},
 			idxRange: []int{0, 1, 2},
-			policy:   config.RoutePolicyRandom,
+			policy:   config.RoutingPolicyRandom,
 		},
 		{
 			scores:   []int{10},
 			idxRange: []int{0},
-			policy:   config.RoutePolicyPreferIdle,
+			policy:   config.RoutingPolicyPreferIdle,
 		},
 		{
 			scores:   []int{10, 20},
 			idxRange: []int{0},
-			policy:   config.RoutePolicyPreferIdle,
+			policy:   config.RoutingPolicyPreferIdle,
 		},
 		{
 			scores:   []int{10, 20, 30},
 			idxRange: []int{0},
-			policy:   config.RoutePolicyPreferIdle,
+			policy:   config.RoutingPolicyPreferIdle,
 		},
 		{
 			scores:   []int{30, 20, 10},
 			idxRange: []int{2},
-			policy:   config.RoutePolicyPreferIdle,
+			policy:   config.RoutingPolicyPreferIdle,
 		},
 		{
 			scores:   []int{30, 11, 10},
 			idxRange: []int{1, 2},
-			policy:   config.RoutePolicyPreferIdle,
+			policy:   config.RoutingPolicyPreferIdle,
 		},
 		{
 			scores:   []int{11, 11, 10},
 			idxRange: []int{0, 1, 2},
-			policy:   config.RoutePolicyPreferIdle,
+			policy:   config.RoutingPolicyPreferIdle,
 		},
 		{
 			scores:   []int{10, 20},
@@ -117,7 +117,7 @@ func TestRouteWithOneFactor(t *testing.T) {
 func TestRouteIdlestWith2Factors(t *testing.T) {
 	lg, _ := logger.CreateLoggerForTest(t)
 	fm := NewFactorBasedBalance(lg, newMockMetricsReader())
-	fm.routePolicy = config.RoutePolicyPreferIdle
+	fm.routePolicy = config.RoutingPolicyPreferIdle
 	factor1 := &mockFactor{bitNum: 4, balanceCount: 1, threshold: 1, canBeRouted: true}
 	factor2 := &mockFactor{bitNum: 12, balanceCount: 1, threshold: 1, canBeRouted: true}
 	fm.factors = []Factor{factor1, factor2}
@@ -189,7 +189,7 @@ func TestRouteIdlestWith2Factors(t *testing.T) {
 func TestRouteRandomWith2Factors(t *testing.T) {
 	lg, _ := logger.CreateLoggerForTest(t)
 	fm := NewFactorBasedBalance(lg, newMockMetricsReader())
-	fm.routePolicy = config.RoutePolicyRandom
+	fm.routePolicy = config.RoutingPolicyRandom
 	factor1 := &mockFactor{bitNum: 4, balanceCount: 1, threshold: 1, canBeRouted: false}
 	factor2 := &mockFactor{bitNum: 12, balanceCount: 1, threshold: 1, canBeRouted: true}
 	fm.factors = []Factor{factor1, factor2}
@@ -639,11 +639,11 @@ func TestSetConfigsConcurrently(t *testing.T) {
 	wg.Run(func() {
 		defer wg.Done()
 		policies := []string{config.BalancePolicyConnection, config.BalancePolicyResource, config.BalancePolicyLocation}
-		routePolicies := []string{config.RoutePolicyRandom, config.RoutePolicyPreferIdle}
+		routePolicies := []string{config.RoutingPolicyRandom, config.RoutingPolicyPreferIdle, config.RoutingPolicyIdlest}
 		for i := 0; ctx.Err() != nil; i++ {
 			cfg.Balance = config.Balance{
-				Policy:      policies[i%len(policies)],
-				RoutePolicy: routePolicies[i%len(routePolicies)],
+				Policy:        policies[i%len(policies)],
+				RoutingPolicy: routePolicies[i%len(routePolicies)],
 			}
 			fbb.SetConfig(cfg)
 		}
