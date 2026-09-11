@@ -329,9 +329,9 @@ func TestRejecterWatcherResignsAndRecompetes(t *testing.T) {
 	require.Eventually(t, func() bool { return operation.hasIP.Load() }, time.Second, 10*time.Millisecond)
 	require.EqualValues(t, 1, operation.addIPCnt.Load())
 
-	// Start the rejecter watcher. The instance is currently not rejecting.
-	watchCtx, watchCancel := context.WithCancel(context.Background())
-	vm.watchWG.RunWithRecover(func() { vm.watchRejecter(watchCtx) }, nil, vm.lg)
+	// Start the rejecter watcher, driven by vm.startCtx so that PreClose's
+	// cancellation of startCtx (and watchWG wait) is the shutdown path under test.
+	vm.watchWG.RunWithRecover(func() { vm.watchRejecter(vm.startCtx) }, nil, vm.lg)
 
 	// Flip to rejecting: the watcher resigns, which retires and drops the VIP.
 	rejecter.reject.Store(true)
@@ -344,7 +344,7 @@ func TestRejecterWatcherResignsAndRecompetes(t *testing.T) {
 	require.EqualValues(t, 2, operation.addIPCnt.Load())
 
 	// Shutdown: closing must release the VIP and stop the watcher without deadlock.
-	watchCancel()
+	// PreClose cancels vm.startCtx (stopping the watcher) and waits for watchWG.
 	vm.PreClose()
 	vm.Close()
 	require.False(t, operation.hasIP.Load())
